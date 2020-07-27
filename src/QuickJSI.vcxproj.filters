@@ -18,7 +18,10 @@
     <ClCompile Include="QuickJSI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="jsi\jsi.cpp">
+    <ClCompile Include="..\external\jsi\jsi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="QuickJSRuntime.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="QuickJSITest.cpp">
@@ -30,5 +33,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
+    <ClInclude Include="QuickJSRuntime.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
