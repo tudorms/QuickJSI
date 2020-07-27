@@ -18,11 +18,19 @@
     <ClCompile Include="QuickJSI.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="jsi\jsi.cpp">
+    <ClCompile Include="..\external\jsi\jsi.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="QuickJSRuntime.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="..\external\quickjs\qjslib.dll" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="QuickJSRuntime.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
