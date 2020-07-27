@@ -1,0 +1,816 @@
+EXPORTS
+    JS_AddIntrinsicAtomics @1 DATA
+    JS_AddIntrinsicBaseObjects @2 DATA
+    JS_AddIntrinsicDate @3 DATA
+    JS_AddIntrinsicEval @4 DATA
+    JS_AddIntrinsicJSON @5 DATA
+    JS_AddIntrinsicMapSet @6 DATA
+    JS_AddIntrinsicPromise @7 DATA
+    JS_AddIntrinsicProxy @8 DATA
+    JS_AddIntrinsicRegExp @9 DATA
+    JS_AddIntrinsicRegExpCompiler @10 DATA
+    JS_AddIntrinsicStringNormalize @11 DATA
+    JS_AddIntrinsicTypedArrays @12 DATA
+    JS_AddModuleExport @13 DATA
+    JS_AddModuleExportList @14 DATA
+    JS_AtomGetKind.lto_priv.0 @15
+    JS_AtomGetStrRT.constprop.0 @16
+    JS_AtomIsArrayIndex.lto_priv.0 @17
+    JS_AtomIsNumericIndex.lto_priv.0 @18
+    JS_AtomIsNumericIndex1.lto_priv.0 @19
+    JS_AtomToCString @20 DATA
+    JS_AtomToString @21 DATA
+    JS_AtomToValue @22 DATA
+    JS_Call @23 DATA
+    JS_CallConstructor @24 DATA
+    JS_CallConstructor2 @25 DATA
+    JS_CallConstructorInternal.lto_priv.0 @26
+    JS_CallFree.lto_priv.0 @27
+    JS_CallInternal.lto_priv.0 @28
+    JS_ComputeMemoryUsage @29 DATA
+    JS_ConcatString.lto_priv.0 @30
+    JS_ConcatString3.lto_priv.0 @31
+    JS_CopyDataProperties.lto_priv.0 @32
+    JS_CopySubArray.lto_priv.0 @33
+    JS_DefineAutoInitProperty.lto_priv.0 @34
+    JS_DefineObjectName.constprop.0 @35
+    JS_DefineObjectNameComputed.constprop.0 @36
+    JS_DefineProperty @37 DATA
+    JS_DefinePropertyGetSet @38 DATA
+    JS_DefinePropertyValue @39 DATA
+    JS_DefinePropertyValueInt64 @40 DATA
+    JS_DefinePropertyValueStr @41 DATA
+    JS_DefinePropertyValueUint32 @42 DATA
+    JS_DefinePropertyValueValue @43 DATA
+    JS_DeleteProperty @44 DATA
+    JS_DeletePropertyInt64 @45 DATA
+    JS_DetachArrayBuffer @46 DATA
+    JS_DetectModule @47 DATA
+    JS_DumpMemoryUsage @48 DATA
+    JS_DupAtom @49 DATA
+    JS_DupContext @50 DATA
+    JS_EnqueueJob @51 DATA
+    JS_Eval @52 DATA
+    JS_EvalFunction @53 DATA
+    JS_EvalFunctionInternal.lto_priv.0 @54
+    JS_EvalObject.lto_priv.0 @55
+    JS_ExecutePendingJob @56 DATA
+    JS_FreeAtom @57 DATA
+    JS_FreeAtomRT @58 DATA
+    JS_FreeAtomStruct.lto_priv.0 @59
+    JS_FreeCString @60 DATA
+    JS_FreeContext @61 DATA
+    JS_FreeRuntime @62 DATA
+    JS_FreeValue.lto_priv.0 @63
+    JS_GetArrayBuffer @64 DATA
+    JS_GetClassProto @65 DATA
+    JS_GetContextOpaque @66 DATA
+    JS_GetException @67 DATA
+    JS_GetFunctionRealm.lto_priv.0 @68
+    JS_GetGlobalObject @69 DATA
+    JS_GetImportMeta @70 DATA
+    JS_GetIterator.lto_priv.0 @71
+    JS_GetIterator2.lto_priv.0 @72
+    JS_GetModuleName @73 DATA
+    JS_GetOpaque @74 DATA
+    JS_GetOpaque2 @75 DATA
+    JS_GetOwnProperty @76 DATA
+    JS_GetOwnPropertyInternal.lto_priv.0 @77
+    JS_GetOwnPropertyNames @78 DATA
+    JS_GetOwnPropertyNames2.lto_priv.0 @79
+    JS_GetOwnPropertyNamesInternal.lto_priv.0 @80
+    JS_GetPropertyInt64.lto_priv.0 @81
+    JS_GetPropertyInternal @82 DATA
+    JS_GetPropertyStr @83 DATA
+    JS_GetPropertyUint32 @84 DATA
+    JS_GetPropertyValue.lto_priv.0 @85
+    JS_GetPrototype @86 DATA
+    JS_GetPrototypePrimitive.lto_priv.0 @87
+    JS_GetRuntime @88 DATA
+    JS_GetRuntimeOpaque @89 DATA
+    JS_GetTypedArrayBuffer @90 DATA
+    JS_HasProperty @91 DATA
+    JS_InstantiateFunctionListItem.lto_priv.0 @92
+    JS_Invoke @93 DATA
+    JS_IsArray @94 DATA
+    JS_IsCFunction @95 DATA
+    JS_IsConstructor @96 DATA
+    JS_IsError @97 DATA
+    JS_IsExtensible @98 DATA
+    JS_IsFunction @99 DATA
+    JS_IsInstanceOf @100 DATA
+    JS_IsJobPending @101 DATA
+    JS_IsLiveObject @102 DATA
+    JS_IsRegisteredClass @103 DATA
+    JS_IsUncatchableError @104 DATA
+    JS_IteratorClose.lto_priv.0 @105
+    JS_IteratorGetCompleteValue.lto_priv.0 @106
+    JS_IteratorNext.constprop.0 @107
+    JS_IteratorNext2.lto_priv.0 @108
+    JS_JSONStringify @109 DATA
+    JS_MarkValue @110 DATA
+    JS_NewArray @111 DATA
+    JS_NewArrayBuffer @112 DATA
+    JS_NewArrayBufferCopy @113 DATA
+    JS_NewAtom @114 DATA
+    JS_NewAtomInt64.part.0.lto_priv.0 @115
+    JS_NewAtomLen @116 DATA
+    JS_NewAtomStr.lto_priv.0 @117
+    JS_NewAtomString @118 DATA
+    JS_NewAtomUInt32 @119 DATA
+    JS_NewAtomUInt32.part.0 @120
+    JS_NewBigInt64 @121 DATA
+    JS_NewBigUint64 @122 DATA
+    JS_NewCFunction2 @123 DATA
+    JS_NewCFunction3.lto_priv.0 @124
+    JS_NewCFunctionData @125 DATA
+    JS_NewCModule @126 DATA
+    JS_NewClass @127 DATA
+    JS_NewClass1.lto_priv.0 @128
+    JS_NewClassID @129 DATA
+    JS_NewContext @130 DATA
+    JS_NewContextRaw @131 DATA
+    JS_NewError @132 DATA
+    JS_NewGlobalCConstructor2.lto_priv.0 @133
+    JS_NewObject @134 DATA
+    JS_NewObjectClass @135 DATA
+    JS_NewObjectFromShape.lto_priv.0 @136
+    JS_NewObjectProto @137 DATA
+    JS_NewObjectProtoClass @138 DATA
+    JS_NewPromiseCapability @139 DATA
+    JS_NewRuntime @140 DATA
+    JS_NewRuntime2 @141 DATA
+    JS_NewString @142 DATA
+    JS_NewStringLen @143 DATA
+    JS_NewSymbolFromAtom.constprop.0 @144
+    JS_OrdinaryIsInstanceOf.lto_priv.0 @145
+    JS_ParseJSON @146 DATA
+    JS_ParseJSON2 @147 DATA
+    JS_PreventExtensions @148 DATA
+    JS_ReadObject @149 DATA
+    JS_ResetUncatchableError @150 DATA
+    JS_ResolveModule @151 DATA
+    JS_RunGC @152 DATA
+    JS_SetCanBlock @153 DATA
+    JS_SetClassProto @154 DATA
+    JS_SetConstructor @155 DATA
+    JS_SetConstructor2.lto_priv.0 @156
+    JS_SetConstructorBit @157 DATA
+    JS_SetContextOpaque @158 DATA
+    JS_SetGCThreshold @159 DATA
+    JS_SetGlobalVar.lto_priv.0 @160
+    JS_SetHostPromiseRejectionTracker @161 DATA
+    JS_SetInterruptHandler @162 DATA
+    JS_SetMaxStackSize @163 DATA
+    JS_SetMemoryLimit @164 DATA
+    JS_SetModuleExport @165 DATA
+    JS_SetModuleExportList @166 DATA
+    JS_SetModuleLoaderFunc @167 DATA
+    JS_SetObjectData.isra.0 @168
+    JS_SetOpaque @169 DATA
+    JS_SetPropertyFunctionList @170 DATA
+    JS_SetPropertyGeneric.lto_priv.0 @171
+    JS_SetPropertyInt64 @172 DATA
+    JS_SetPropertyInternal @173 DATA
+    JS_SetPropertyStr @174 DATA
+    JS_SetPropertyUint32 @175 DATA
+    JS_SetPropertyValue.lto_priv.0 @176
+    JS_SetPrototype @177 DATA
+    JS_SetPrototypeInternal.lto_priv.0 @178
+    JS_SetRuntimeInfo @179 DATA
+    JS_SetRuntimeOpaque @180 DATA
+    JS_SetSharedArrayBufferFunctions @181 DATA
+    JS_SetUncatchableError @182 DATA
+    JS_SpeciesConstructor.lto_priv.0 @183
+    JS_Throw @184 DATA
+    JS_ThrowError.lto_priv.0 @185
+    JS_ThrowError2.lto_priv.0 @186
+    JS_ThrowInternalError @187 DATA
+    JS_ThrowOutOfMemory @188 DATA
+    JS_ThrowRangeError @189 DATA
+    JS_ThrowReferenceError @190 DATA
+    JS_ThrowReferenceErrorNotDefined.lto_priv.0 @191
+    JS_ThrowReferenceErrorUninitialized.lto_priv.0 @192
+    JS_ThrowSyntaxError @193 DATA
+    JS_ThrowTypeError @194 DATA
+    JS_ThrowTypeErrorOrFalse.lto_priv.0 @195
+    JS_ThrowTypeErrorReadOnly.lto_priv.0 @196
+    JS_ToArrayLengthFree.lto_priv.0 @197
+    JS_ToBigInt64 @198 DATA
+    JS_ToBool @199 DATA
+    JS_ToBoolFree.lto_priv.0 @200
+    JS_ToCStringLen2 @201 DATA
+    JS_ToFloat64 @202 DATA
+    JS_ToIndex @203 DATA
+    JS_ToInt32 @204 DATA
+    JS_ToInt32Clamp @205 DATA
+    JS_ToInt32Free.lto_priv.0 @206
+    JS_ToInt32Sat @207 DATA
+    JS_ToInt32SatFree.lto_priv.0 @208
+    JS_ToInt64 @209 DATA
+    JS_ToInt64Clamp @210 DATA
+    JS_ToInt64Ext @211 DATA
+    JS_ToInt64Sat @212 DATA
+    JS_ToInt64SatFree.lto_priv.0 @213
+    JS_ToLengthFree.lto_priv.0 @214
+    JS_ToNumberHintFree.constprop.0 @215
+    JS_ToObject.lto_priv.0 @216
+    JS_ToPrimitiveFree.lto_priv.0 @217
+    JS_ToPropertyKey @218 DATA
+    JS_ToQuotedString.lto_priv.0 @219
+    JS_ToString @220 DATA
+    JS_ToStringFree.lto_priv.0 @221
+    JS_ToStringInternal @222 DATA
+    JS_ToUint8ClampFree.lto_priv.0 @223
+    JS_TryGetPropertyInt64.lto_priv.0 @224
+    JS_ValueToAtom @225 DATA
+    JS_WriteObject @226 DATA
+    JS_WriteObject2 @227 DATA
+    JS_WriteString.lto_priv.0 @228
+    __JS_AtomToValue.lto_priv.0 @229
+    __JS_EvalInternal.lto_priv.0 @230
+    __JS_FindAtom.constprop.0 @231
+    __JS_FreeAtom.lto_priv.0 @232
+    __JS_FreeValue @233 DATA
+    __JS_FreeValueRT @234 DATA
+    __JS_NewAtom.lto_priv.0 @235
+    __JS_ToFloat64Free.lto_priv.0 @236
+    __js_poll_interrupts.lto_priv.0 @237
+    __pth_gpointer_locked @238
+    __pthread_clock_nanosleep @239
+    __pthread_shallcancel @240
+    __xl_f @241 DATA
+    _pthread_cleanup_dest @242
+    _pthread_get_state @243
+    _pthread_invoke_cancel @244
+    _pthread_key_dest @245 DATA
+    _pthread_rel_time_in_ms @246
+    _pthread_set_state @247
+    _pthread_setnobreak @248
+    _pthread_time_in_ms @249
+    _pthread_time_in_ms_from_timespec @250
+    _pthread_tryjoin @251
+    _pthread_wait_for_multiple_objects @252
+    _pthread_wait_for_single_object @253
+    add_arg.lto_priv.0 @254
+    add_closure_var.lto_priv.0 @255
+    add_export_entry2.lto_priv.0 @256
+    add_hoisted_def.lto_priv.0 @257
+    add_property.lto_priv.0 @258
+    add_shape_property.lto_priv.0 @259
+    add_var.lto_priv.0 @260
+    async_func_init.lto_priv.0 @261
+    async_func_mark.lto_priv.0 @262
+    bc_atom_to_idx.lto_priv.0 @263
+    bc_put_atom.isra.0 @264
+    build_arg_list.lto_priv.0 @265
+    build_backtrace.lto_priv.0 @266
+    case_conv_table1.lto_priv.0 @267 DATA
+    char_range_s.lto_priv.0 @268 DATA
+    check_define_prop_flags.lto_priv.0 @269
+    check_function.lto_priv.0 @270
+    clock_getres @271
+    clock_gettime @272
+    clock_nanosleep @273
+    clock_settime @274
+    close_scopes.lto_priv.0 @275
+    close_var_refs.lto_priv.0 @276
+    cond_print @277
+    cond_print_set @278
+    cpool_add.lto_priv.0 @279
+    cr_copy @280 DATA
+    cr_default_realloc.lto_priv.0 @281
+    cr_free @282 DATA
+    cr_init @283 DATA
+    cr_invert @284 DATA
+    cr_op @285 DATA
+    cr_realloc @286 DATA
+    cr_union1 @287 DATA
+    days_from_year.lto_priv.0 @288
+    dbuf_default_realloc.lto_priv.0 @289
+    dbuf_free @290 DATA
+    dbuf_init @291 DATA
+    dbuf_init2 @292 DATA
+    dbuf_printf @293 DATA
+    dbuf_put @294 DATA
+    dbuf_put_leb128.lto_priv.0 @295
+    dbuf_put_self @296 DATA
+    dbuf_putc @297 DATA
+    dbuf_putstr @298 DATA
+    dbuf_realloc @299 DATA
+    dbuf_write @300 DATA
+    define_var.lto_priv.0 @301
+    do_sema_b_wait_intern @302
+    emit_atom.lto_priv.0 @303
+    emit_class_field_init.lto_priv.0 @304
+    emit_goto.lto_priv.0 @305
+    emit_label.lto_priv.0 @306
+    emit_op.lto_priv.0 @307
+    emit_push_const.lto_priv.0 @308
+    emit_return.lto_priv.0 @309
+    encodeURI_hex.isra.0 @310
+    find_atom.part.0.lto_priv.0 @311
+    find_group_name.isra.0 @312
+    find_lexical_decl.constprop.0 @313
+    find_var.constprop.0 @314
+    fprintf.lto_priv.0.lto_priv.0 @315
+    fprintf.lto_priv.1.lto_priv.0 @316
+    free_arg_list.lto_priv.0 @317
+    free_bytecode_atoms.lto_priv.0 @318
+    free_function_bytecode.lto_priv.0 @319
+    free_property.lto_priv.0 @320
+    free_token.lto_priv.0 @321
+    free_var_ref.lto_priv.0 @322
+    func_kind_to_class_id.lto_priv.0 @323 DATA
+    get_closure_var2.lto_priv.0 @324
+    get_index_pos.part.0.lto_priv.0 @325
+    get_lvalue.lto_priv.0 @326
+    get_proxy_method.lto_priv.0 @327
+    get_var_ref.lto_priv.0 @328
+    has_suffix @329 DATA
+    hash_string.lto_priv.0 @330
+    js___date_clock.lto_priv.0 @331
+    js_add_slow.lto_priv.0 @332
+    js_aggregate_error_constructor.lto_priv.0 @333
+    js_alloc_string.lto_priv.0 @334
+    js_arguments_define_own_property.lto_priv.0 @335
+    js_array_buffer_constructor3.lto_priv.0 @336
+    js_array_buffer_finalizer.lto_priv.0 @337
+    js_array_buffer_free.lto_priv.0 @338
+    js_array_concat.lto_priv.0 @339
+    js_array_constructor.lto_priv.0 @340
+    js_array_copyWithin.lto_priv.0 @341
+    js_array_every.lto_priv.0 @342
+    js_array_fill.lto_priv.0 @343
+    js_array_find.lto_priv.0 @344
+    js_array_flatten.lto_priv.0 @345
+    js_array_from.lto_priv.0 @346
+    js_array_includes.lto_priv.0 @347
+    js_array_indexOf.lto_priv.0 @348
+    js_array_isArray.lto_priv.0 @349
+    js_array_iterator_finalizer.lto_priv.0 @350
+    js_array_iterator_mark.lto_priv.0 @351
+    js_array_iterator_next.lto_priv.0 @352
+    js_array_join.lto_priv.0 @353
+    js_array_lastIndexOf.lto_priv.0 @354
+    js_array_of.lto_priv.0 @355
+    js_array_pop.lto_priv.0 @356
+    js_array_push.lto_priv.0 @357
+    js_array_reduce.lto_priv.0 @358
+    js_array_reverse.lto_priv.0 @359
+    js_array_slice.lto_priv.0 @360
+    js_array_sort.lto_priv.0 @361
+    js_array_toString.lto_priv.0 @362
+    js_async_function_call.lto_priv.0 @363
+    js_async_function_resolve_call.lto_priv.0 @364
+    js_async_function_resolve_finalizer.lto_priv.0 @365
+    js_async_function_resolve_mark.lto_priv.0 @366
+    js_async_generator_finalizer.lto_priv.0 @367
+    js_async_generator_function_call.lto_priv.0 @368
+    js_async_generator_mark.lto_priv.0 @369
+    js_async_generator_next.lto_priv.0 @370
+    js_async_generator_resolve_function.lto_priv.0 @371
+    js_async_generator_resolve_function_create.constprop.0 @372
+    js_async_generator_resolve_or_reject.isra.0 @373
+    js_atof.lto_priv.0 @374
+    js_atom_concat_str.lto_priv.0 @375
+    js_autoinit_func_table.lto_priv.0 @376 DATA
+    js_binary_arith_slow.lto_priv.0 @377
+    js_binary_logic_slow.lto_priv.0 @378
+    js_boolean_constructor.lto_priv.0 @379
+    js_boolean_toString.lto_priv.0 @380
+    js_boolean_valueOf.lto_priv.0 @381
+    js_bytecode_function_finalizer.lto_priv.0 @382
+    js_bytecode_function_mark.lto_priv.0 @383
+    js_call_bound_function.lto_priv.0 @384
+    js_call_c_function.lto_priv.0 @385
+    js_class_id_alloc.lto_priv.0 @386 DATA
+    js_clone_shape.lto_priv.0 @387
+    js_closure.lto_priv.0 @388
+    js_closure2.lto_priv.0 @389
+    js_create_array.lto_priv.0 @390
+    js_create_array_iterator.lto_priv.0 @391
+    js_create_from_ctor.lto_priv.0 @392
+    js_create_iterator_result.lto_priv.0 @393
+    js_create_module_function.lto_priv.0 @394
+    js_define_var.lto_priv.0 @395
+    js_dtoa1.lto_priv.0 @396
+    js_dynamic_import_job.lto_priv.0 @397
+    js_ecvt1.constprop.0 @398
+    js_eq_slow.lto_priv.0 @399
+    js_error_constructor.lto_priv.0 @400
+    js_error_toString.lto_priv.0 @401
+    js_evaluate_module.lto_priv.0 @402
+    js_for_of_start.lto_priv.0 @403
+    js_free @404 DATA
+    js_free_desc.lto_priv.0 @405
+    js_free_function_def.lto_priv.0 @406
+    js_free_module_def.lto_priv.0 @407
+    js_free_prop_enum.part.0.lto_priv.0 @408
+    js_free_rt @409 DATA
+    js_free_shape0.lto_priv.0 @410
+    js_function_apply.lto_priv.0 @411
+    js_function_bind.lto_priv.0 @412
+    js_function_call.lto_priv.0 @413
+    js_function_constructor.lto_priv.0 @414
+    js_function_hasInstance.lto_priv.0 @415
+    js_function_proto.lto_priv.0 @416
+    js_function_proto_caller.lto_priv.0 @417
+    js_function_proto_fileName.lto_priv.0 @418
+    js_function_proto_lineNumber.lto_priv.0 @419
+    js_function_toString.lto_priv.0 @420
+    js_generator_finalizer.lto_priv.0 @421
+    js_generator_function_call.lto_priv.0 @422
+    js_generator_mark.lto_priv.0 @423
+    js_generator_next.lto_priv.0 @424
+    js_get_atom_index.lto_priv.0 @425
+    js_get_function_name.lto_priv.0 @426
+    js_get_length32.lto_priv.0 @427
+    js_get_length64.lto_priv.0 @428
+    js_get_script_or_module_name.isra.0 @429
+    js_get_this.lto_priv.0 @430
+    js_global_decodeURI.lto_priv.0 @431
+    js_global_encodeURI.lto_priv.0 @432
+    js_global_escape.lto_priv.0 @433
+    js_global_eval.lto_priv.0 @434
+    js_global_isFinite.lto_priv.0 @435
+    js_global_isNaN.lto_priv.0 @436
+    js_global_unescape.lto_priv.0 @437
+    js_host_resolve_imported_module.lto_priv.0 @438
+    js_init_module_os @439 DATA
+    js_init_module_std @440 DATA
+    js_instantiate_module.lto_priv.0 @441
+    js_instantiate_prototype.lto_priv.0 @442
+    js_is_live_code.lto_priv.0 @443
+    js_is_regexp.lto_priv.0 @444
+    js_iterator_proto_iterator.lto_priv.0 @445
+    js_json_check.lto_priv.0 @446
+    js_json_funcs.lto_priv.0 @447 DATA
+    js_json_obj.lto_priv.0 @448 DATA
+    js_json_parse.lto_priv.0 @449
+    js_json_stringify.lto_priv.0 @450
+    js_json_to_str.constprop.0 @451
+    js_load_file @452 DATA
+    js_malloc @453 DATA
+    js_malloc_rt @454 DATA
+    js_malloc_usable_size @455 DATA
+    js_malloc_usable_size_rt @456 DATA
+    js_mallocz @457 DATA
+    js_mallocz_rt @458 DATA
+    js_map_finalizer.lto_priv.0 @459
+    js_map_iterator_finalizer.lto_priv.0 @460
+    js_map_iterator_mark.lto_priv.0 @461
+    js_map_mark.lto_priv.0 @462
+    js_math_clz32.lto_priv.0 @463
+    js_math_fround.lto_priv.0 @464
+    js_math_hypot.lto_priv.0 @465
+    js_math_imul.lto_priv.0 @466
+    js_math_min_max.lto_priv.0 @467
+    js_math_random.lto_priv.0 @468
+    js_math_round.lto_priv.0 @469
+    js_math_sign.lto_priv.0 @470
+    js_method_set_home_object.lto_priv.0 @471
+    js_module_loader @472 DATA
+    js_module_ns_autoinit.lto_priv.0 @473
+    js_module_ns_has.lto_priv.0 @474
+    js_module_set_import_meta @475 DATA
+    js_new_function_def.lto_priv.0 @476
+    js_new_module_def.lto_priv.0 @477
+    js_new_promise_capability.lto_priv.0 @478
+    js_new_shape2.constprop.0 @479
+    js_new_string8.lto_priv.0 @480
+    js_new_string_char.lto_priv.0 @481
+    js_not_slow.lto_priv.0 @482
+    js_number_constructor.lto_priv.0 @483
+    js_number_isFinite.lto_priv.0 @484
+    js_number_isInteger.lto_priv.0 @485
+    js_number_isNaN.lto_priv.0 @486
+    js_number_isSafeInteger.lto_priv.0 @487
+    js_number_toExponential.lto_priv.0 @488
+    js_number_toFixed.lto_priv.0 @489
+    js_number_toPrecision.lto_priv.0 @490
+    js_number_toString.lto_priv.0 @491
+    js_number_valueOf.lto_priv.0 @492
+    js_obj_to_desc.lto_priv.0 @493
+    js_object___defineGetter__.lto_priv.0 @494
+    js_object___getClass.lto_priv.0 @495
+    js_object___lookupGetter__.lto_priv.0 @496
+    js_object_assign.lto_priv.0 @497
+    js_object_constructor.lto_priv.0 @498
+    js_object_create.lto_priv.0 @499
+    js_object_defineProperties.lto_priv.0 @500
+    js_object_defineProperty.lto_priv.0 @501
+    js_object_fromEntries.lto_priv.0 @502
+    js_object_getOwnPropertyDescriptor.lto_priv.0 @503
+    js_object_getOwnPropertyDescriptors.lto_priv.0 @504
+    js_object_getOwnPropertyNames.lto_priv.0 @505
+    js_object_getOwnPropertySymbols.lto_priv.0 @506
+    js_object_getPrototypeOf.lto_priv.0 @507
+    js_object_get___proto__.lto_priv.0 @508
+    js_object_hasOwnProperty.lto_priv.0 @509
+    js_object_is.lto_priv.0 @510
+    js_object_isExtensible.lto_priv.0 @511
+    js_object_isPrototypeOf.lto_priv.0 @512
+    js_object_isSealed.lto_priv.0 @513
+    js_object_keys.lto_priv.0 @514
+    js_object_preventExtensions.lto_priv.0 @515
+    js_object_propertyIsEnumerable.lto_priv.0 @516
+    js_object_seal.lto_priv.0 @517
+    js_object_setPrototypeOf.lto_priv.0 @518
+    js_object_set___proto__.lto_priv.0 @519
+    js_object_toLocaleString.lto_priv.0 @520
+    js_object_toString.lto_priv.0 @521
+    js_object_valueOf.lto_priv.0 @522
+    js_operator_typeof.lto_priv.0 @523
+    js_parseFloat.lto_priv.0 @524
+    js_parseInt.lto_priv.0 @525
+    js_parse_assign_expr.lto_priv.0 @526
+    js_parse_check_duplicate_parameter.lto_priv.0 @527
+    js_parse_class.lto_priv.0 @528
+    js_parse_destructuring_element.lto_priv.0 @529
+    js_parse_destructuring_var.constprop.0 @530
+    js_parse_directives.part.0.lto_priv.0 @531
+    js_parse_error @532 DATA
+    js_parse_expect.lto_priv.0 @533
+    js_parse_expect_semi.lto_priv.0 @534
+    js_parse_expr2.lto_priv.0 @535
+    js_parse_expr_binary.part.0.lto_priv.0 @536
+    js_parse_expr_paren.lto_priv.0 @537
+    js_parse_function_check_names.lto_priv.0 @538
+    js_parse_function_decl2.constprop.0 @539
+    js_parse_postfix_expr.lto_priv.0 @540
+    js_parse_skip_parens_token.lto_priv.0 @541
+    js_parse_source_element.lto_priv.0 @542
+    js_parse_unary.lto_priv.0 @543
+    js_pow.lto_priv.0 @544
+    js_promise_resolve.lto_priv.0 @545
+    js_proxy_isExtensible.lto_priv.0 @546
+    js_proxy_preventExtensions.lto_priv.0 @547
+    js_realloc @548 DATA
+    js_realloc2 @549 DATA
+    js_realloc_array.lto_priv.0 @550
+    js_realloc_rt @551 DATA
+    js_reflect_apply.lto_priv.0 @552
+    js_reflect_construct.lto_priv.0 @553
+    js_reflect_deleteProperty.lto_priv.0 @554
+    js_reflect_get.lto_priv.0 @555
+    js_reflect_has.lto_priv.0 @556
+    js_reflect_ownKeys.lto_priv.0 @557
+    js_reflect_set.lto_priv.0 @558
+    js_reflect_setPrototypeOf.lto_priv.0 @559
+    js_regexp_constructor_internal.lto_priv.0 @560
+    js_regexp_finalizer.lto_priv.0 @561
+    js_regexp_string_iterator_finalizer.lto_priv.0 @562
+    js_regexp_string_iterator_mark.lto_priv.0 @563
+    js_relational_slow.lto_priv.0 @564
+    js_resolve_module.part.0.lto_priv.0 @565
+    js_same_value.lto_priv.0 @566
+    js_shape_prepare_update.lto_priv.0 @567
+    js_shr_slow.lto_priv.0 @568
+    js_std_add_helpers @569 DATA
+    js_std_dump_error @570 DATA
+    js_std_eval_binary @571 DATA
+    js_std_free_handlers @572 DATA
+    js_std_init_handlers @573 DATA
+    js_std_loop @574 DATA
+    js_std_promise_rejection_tracker @575 DATA
+    js_strdup @576 DATA
+    js_strict_eq2.lto_priv.0 @577
+    js_strict_eq_slow.lto_priv.0 @578
+    js_string_CreateHTML.lto_priv.0 @579
+    js_string___GetSubstitution.constprop.0 @580
+    js_string___quote.lto_priv.0 @581
+    js_string_charAt.lto_priv.0 @582
+    js_string_charCodeAt.lto_priv.0 @583
+    js_string_codePointAt.lto_priv.0 @584
+    js_string_codePointRange @585 DATA
+    js_string_concat.lto_priv.0 @586
+    js_string_constructor.lto_priv.0 @587
+    js_string_define_own_property.lto_priv.0 @588
+    js_string_delete_property.lto_priv.0 @589
+    js_string_fromCharCode.lto_priv.0 @590
+    js_string_fromCodePoint.lto_priv.0 @591
+    js_string_get_own_property.lto_priv.0 @592
+    js_string_get_own_property_names.lto_priv.0 @593
+    js_string_includes.lto_priv.0 @594
+    js_string_indexOf.lto_priv.0 @595
+    js_string_iterator_next.lto_priv.0 @596
+    js_string_localeCompare.lto_priv.0 @597
+    js_string_match.lto_priv.0 @598
+    js_string_memcmp.lto_priv.0 @599
+    js_string_normalize.lto_priv.0 @600
+    js_string_pad.lto_priv.0 @601
+    js_string_proto_normalize.lto_priv.0 @602 DATA
+    js_string_raw.lto_priv.0 @603
+    js_string_repeat.lto_priv.0 @604
+    js_string_replace.lto_priv.0 @605
+    js_string_slice.lto_priv.0 @606
+    js_string_split.lto_priv.0 @607
+    js_string_substr.lto_priv.0 @608
+    js_string_substring.lto_priv.0 @609
+    js_string_toLowerCase.lto_priv.0 @610
+    js_string_toString.lto_priv.0 @611
+    js_string_trim.lto_priv.0 @612
+    js_strndup @613 DATA
+    js_sub_string.lto_priv.0 @614
+    js_symbol_constructor.lto_priv.0 @615
+    js_symbol_for.lto_priv.0 @616
+    js_symbol_get_description.lto_priv.0 @617
+    js_symbol_keyFor.lto_priv.0 @618
+    js_symbol_toString.lto_priv.0 @619
+    js_symbol_valueOf.lto_priv.0 @620
+    js_throw_type_error.lto_priv.0 @621
+    js_typed_array___speciesCreate.constprop.0 @622
+    js_typed_array_constructor.lto_priv.0 @623
+    js_typed_array_create.lto_priv.0 @624
+    js_typed_array_finalizer.lto_priv.0 @625
+    js_typed_array_get_length_internal.lto_priv.0 @626
+    js_typed_array_mark.lto_priv.0 @627
+    js_unary_arith_slow.lto_priv.0 @628
+    json_next_token.lto_priv.0 @629
+    lre_case_conv @630 DATA
+    lre_check_stack_overflow @631 DATA
+    lre_compile @632 DATA
+    lre_exec @633 DATA
+    lre_get_capture_count @634 DATA
+    lre_get_flags @635 DATA
+    lre_id_continue_table_ascii @636 DATA
+    lre_id_start_table_ascii @637 DATA
+    lre_is_case_ignorable @638 DATA
+    lre_is_cased @639 DATA
+    lre_is_id_continue @640 DATA
+    lre_is_id_start @641 DATA
+    lre_is_in_table.lto_priv.0 @642
+    lre_is_space @643 DATA
+    lre_parse_escape @644 DATA
+    lre_realloc @645 DATA
+    map_delete_record.part.0.lto_priv.0 @646
+    map_hash_key.constprop.0 @647
+    month_days.lto_priv.0 @648 DATA
+    nanosleep @649
+    native_error_name.lto_priv.0 @650 DATA
+    new_label_fd.lto_priv.0 @651
+    next_token.lto_priv.0 @652
+    opcode_info.lto_priv.0 @653 DATA
+    optimize_scope_make_ref.constprop.0 @654
+    perform_promise_then.lto_priv.0 @655
+    pop_scope.lto_priv.0 @656
+    printf.constprop.0 @657
+    pstrcat @658 DATA
+    pstrcpy @659 DATA
+    pthread_attr_destroy @660
+    pthread_attr_getdetachstate @661
+    pthread_attr_getinheritsched @662
+    pthread_attr_getschedparam @663
+    pthread_attr_getschedpolicy @664
+    pthread_attr_getscope @665
+    pthread_attr_getstackaddr @666
+    pthread_attr_getstacksize @667
+    pthread_attr_init @668
+    pthread_attr_setdetachstate @669
+    pthread_attr_setinheritsched @670
+    pthread_attr_setschedparam @671
+    pthread_attr_setschedpolicy @672
+    pthread_attr_setscope @673
+    pthread_attr_setstackaddr @674
+    pthread_attr_setstacksize @675
+    pthread_cancel @676
+    pthread_cond_broadcast @677
+    pthread_cond_destroy @678
+    pthread_cond_init @679
+    pthread_cond_signal @680
+    pthread_cond_timedwait @681
+    pthread_cond_timedwait_relative_np @682
+    pthread_cond_wait @683
+    pthread_condattr_destroy @684
+    pthread_condattr_getclock @685
+    pthread_condattr_getpshared @686
+    pthread_condattr_init @687
+    pthread_condattr_setclock @688
+    pthread_condattr_setpshared @689
+    pthread_create @690
+    pthread_create_wrapper @691
+    pthread_delay_np @692
+    pthread_delay_np_ms @693
+    pthread_detach @694
+    pthread_equal @695
+    pthread_exit @696
+    pthread_get_concurrency @697
+    pthread_getclean @698
+    pthread_getconcurrency @699
+    pthread_getevent @700
+    pthread_gethandle @701
+    pthread_getname_np @702
+    pthread_getschedparam @703
+    pthread_getspecific @704
+    pthread_join @705
+    pthread_key_create @706
+    pthread_key_delete @707
+    pthread_kill @708
+    pthread_mutex_destroy @709
+    pthread_mutex_init @710
+    pthread_mutex_lock @711
+    pthread_mutex_timedlock @712
+    pthread_mutex_trylock @713
+    pthread_mutex_unlock @714
+    pthread_mutexattr_destroy @715
+    pthread_mutexattr_getprioceiling @716
+    pthread_mutexattr_getprotocol @717
+    pthread_mutexattr_getpshared @718
+    pthread_mutexattr_gettype @719
+    pthread_mutexattr_init @720
+    pthread_mutexattr_setprioceiling @721
+    pthread_mutexattr_setprotocol @722
+    pthread_mutexattr_setpshared @723
+    pthread_mutexattr_settype @724
+    pthread_num_processors_np @725
+    pthread_once @726
+    pthread_rwlock_destroy @727
+    pthread_rwlock_init @728
+    pthread_rwlock_rdlock @729
+    pthread_rwlock_timedrdlock @730
+    pthread_rwlock_timedwrlock @731
+    pthread_rwlock_tryrdlock @732
+    pthread_rwlock_trywrlock @733
+    pthread_rwlock_unlock @734
+    pthread_rwlock_wrlock @735
+    pthread_rwlockattr_destroy @736
+    pthread_rwlockattr_getpshared @737
+    pthread_rwlockattr_init @738
+    pthread_rwlockattr_setpshared @739
+    pthread_self @740
+    pthread_set_concurrency @741
+    pthread_set_num_processors_np @742
+    pthread_setcancelstate @743
+    pthread_setcanceltype @744
+    pthread_setconcurrency @745
+    pthread_setname_np @746
+    pthread_setschedparam @747
+    pthread_setspecific @748
+    pthread_spin_destroy @749
+    pthread_spin_init @750
+    pthread_spin_lock @751
+    pthread_spin_trylock @752
+    pthread_spin_unlock @753
+    pthread_testcancel @754
+    pthread_timechange_handler_np @755
+    pthread_tls_init @756
+    push_scope.lto_priv.0 @757
+    put_lvalue.lto_priv.0 @758
+    put_lvalue_nokeep.lto_priv.0 @759
+    re_emit_goto.isra.0 @760
+    re_parse_group_name.constprop.0 @761
+    resize_properties.lto_priv.0 @762
+    resolve_pseudo_var.lto_priv.0 @763
+    rqsort @764 DATA
+    rwl_print @765
+    rwl_print_set @766
+    sched_get_priority_max @767
+    sched_get_priority_min @768
+    sched_getscheduler @769
+    sched_setscheduler @770
+    sched_yield @771
+    set_date_fields.constprop.0 @772
+    set_object_name.lto_priv.0 @773
+    simple_next_token.lto_priv.0 @774
+    skip_spaces.lto_priv.0 @775
+    snprintf.lto_priv.0.lto_priv.0 @776
+    snprintf.lto_priv.1.lto_priv.0 @777
+    sprintf.constprop.0 @778
+    string_buffer_concat.lto_priv.0 @779
+    string_buffer_concat_value.lto_priv.0 @780
+    string_buffer_concat_value_free.lto_priv.0 @781
+    string_buffer_end.lto_priv.0 @782
+    string_buffer_fill.lto_priv.0 @783
+    string_buffer_putc.lto_priv.0 @784
+    string_buffer_putc16.lto_priv.0 @785
+    string_buffer_putc8.lto_priv.0 @786
+    string_buffer_putc_slow.lto_priv.0 @787
+    string_buffer_write16.lto_priv.0 @788
+    string_buffer_write8.lto_priv.0 @789
+    string_get_digits.constprop.0 @790
+    string_getc.lto_priv.0 @791
+    strstart @792 DATA
+    thread_print @793
+    thread_print_set @794
+    typed_array_init.isra.0 @795
+    typed_array_size_log2.lto_priv.0 @796 DATA
+    unicode_decomp_entry.part.0.lto_priv.0 @797
+    unicode_decomp_table2.lto_priv.0 @798 DATA
+    unicode_find_name.lto_priv.0 @799
+    unicode_from_utf8 @800 DATA
+    unicode_gc_mask_table.lto_priv.0 @801 DATA
+    unicode_gc_name_table.lto_priv.0 @802 DATA
+    unicode_general_category @803 DATA
+    unicode_general_category1.lto_priv.0 @804
+    unicode_normalize @805 DATA
+    unicode_prop @806 DATA
+    unicode_prop_Case_Ignorable_index.lto_priv.0 @807 DATA
+    unicode_prop_Case_Ignorable_table.lto_priv.0 @808 DATA
+    unicode_prop_ID_Continue1_index.lto_priv.0 @809 DATA
+    unicode_prop_ID_Continue1_table.lto_priv.0 @810 DATA
+    unicode_prop_ID_Start_index.lto_priv.0 @811 DATA
+    unicode_prop_ID_Start_table.lto_priv.0 @812 DATA
+    unicode_script @813 DATA
+    unicode_to_utf8 @814 DATA
+    update_label.lto_priv.0 @815
