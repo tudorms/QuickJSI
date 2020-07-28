@@ -1,4 +1,5 @@
 #include <iostream>
+#include <array>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -10,6 +11,22 @@
 
 using namespace facebook;
 
+#define QJS_VERIFY_ELSE_CRASH(condition) \
+  do {                                   \
+    if (!(condition)) {                  \
+      assert(false && #condition);       \
+      std::terminate();                  \
+    }                                    \
+  } while (false)
+
+#define QJS_VERIFY_ELSE_CRASH_MSG(condition, message) \
+  do {                                                \
+    if (!(condition)) {                               \
+      assert(false && (message));                     \
+      std::terminate();                               \
+    }                                                 \
+  } while (false)
+
 namespace quickjs {
 
 namespace {
@@ -18,6 +35,8 @@ JSClassID g_hostObjectClassId;
 JSClassExoticMethods g_hostObjectExoticMethods;
 JSClassDef g_hostObjectClassDef;
 } // namespace
+
+static constexpr size_t MaxCallArgCount = 32;
 
 class QuickJSRuntime : public jsi::Runtime
 {
@@ -83,9 +102,9 @@ private:
             delete this;
         }
 
-        static JSAtom GetJSAtom(const PointerValue * pv) noexcept
+        static JSAtom GetJSAtom(const PointerValue* pv) noexcept
         {
-            return static_cast<const QuickJSAtomPointerValue *>(pv)->_atom;
+            return static_cast<const QuickJSAtomPointerValue*>(pv)->_atom;
         }
 
     private:
@@ -213,6 +232,47 @@ private:
         return fromJSIValue(value).v;
     }
 
+    JSValueConst AsJSValueConst(const jsi::Value& value) noexcept
+    {
+        if (value.isUndefined())
+        {
+            return JS_UNDEFINED;
+        }
+        else if (value.isNull())
+        {
+            return JS_NULL;
+        }
+        else if (value.isBool())
+        {
+            return value.getBool() ? JS_TRUE : JS_FALSE;
+        }
+        else if (value.isNumber())
+        {
+            return JS_NewFloat64(_context.ctx, value.getNumber());
+        }
+        else if (value.isString())
+        {
+            return QuickJSPointerValue::GetJSValue(getPointerValue(value));
+        }
+        else if (value.isString())
+        {
+            return QuickJSPointerValue::GetJSValue(getPointerValue(value));
+        }
+        else if (value.isObject())
+        {
+            return QuickJSPointerValue::GetJSValue(getPointerValue(value));
+        }
+        else
+        {
+            QJS_VERIFY_ELSE_CRASH_MSG(false, "Unknown JSI Value kind");
+        }
+    }
+
+    JSValueConst AsJSValueConst(const jsi::Pointer& ptr) noexcept
+    {
+        return QuickJSPointerValue::GetJSValue(getPointerValue(ptr));
+    }
+
     std::string getExceptionDetails()
     {
         auto exc = _context.getException();
@@ -311,7 +371,7 @@ public:
 
     virtual jsi::PropNameID createPropNameIDFromString(const jsi::String& str) override
     {
-        return createPropNameID(JS_ValueToAtom(_context.ctx, AsJSValue(str)));
+        return createPropNameID(JS_ValueToAtom(_context.ctx, AsJSValueConst(str)));
     }
 
     virtual std::string utf8(const jsi::PropNameID& sym) override
@@ -475,13 +535,16 @@ public:
 
     virtual bool hasProperty(const jsi::Object& obj, const jsi::PropNameID& name) override
     {
-        return JS_HasProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name));
+        //TODO: handle exception
+        //TODO: Should we free the atom?
+        return JS_HasProperty(_context.ctx, AsJSValueConst(obj), AsJSAtom(name));
     }
 
-    virtual bool hasProperty(const jsi::Object&, const jsi::String& name) override
+    virtual bool hasProperty(const jsi::Object& obj, const jsi::String& name) override
     {
-        // TODO: NYI
-        std::abort();
+        //TODO: free atom
+        //TODO: handle exception
+        return JS_HasProperty(_context.ctx, AsJSValueConst(obj), JS_ValueToAtom(_context.ctx, AsJSValueConst(name)));
     }
 
     virtual void setPropertyValue(jsi::Object& obj, const jsi::PropNameID& name, const jsi::Value& value) override
@@ -644,14 +707,14 @@ public:
 
     virtual jsi::Value call(const jsi::Function& func, const jsi::Value& jsThis, const jsi::Value* args, size_t count) override
     {
-        JSValue jsArgs[32] {};
-        if (count > 32) std::abort(); // We do not support more than 32 args
+        QJS_VERIFY_ELSE_CRASH_MSG(count <= MaxCallArgCount, "Argument count must not exceed the supported max arg count.");
+        std::array<JSValue, MaxCallArgCount> jsArgs;
         for (size_t i = 0; i < count; ++i)
         {
-            jsArgs[i] = AsJSValue(*(args + i));
+            jsArgs[i] = AsJSValueConst(*(args + i));
         }
 
-        return createValue(JS_Call(_context.ctx, AsJSValue(func), AsJSValue(jsThis), count, jsArgs));
+        return createValue(JS_Call(_context.ctx, AsJSValueConst(func), AsJSValueConst(jsThis), static_cast<int>(count), jsArgs.data()));
     }
 
     virtual jsi::Value callAsConstructor(const jsi::Function&, const jsi::Value* args, size_t count) override
