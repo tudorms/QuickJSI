@@ -43,9 +43,43 @@ private:
         friend class QuickJSRuntime;
     };
 
+    class QuickJSObjectValue final : public Runtime::PointerValue
+    {
+        QuickJSObjectValue(JSContext* ctx, JSValue val) :
+            _ctx(ctx), _val(JS_DupValue(ctx, val))
+        {
+            //if (JS_IsException(val)) throw;
+        }
+
+        void invalidate() override
+        {
+            JS_FreeValue(_ctx, _val);
+
+            delete this;
+        }
+
+    private:
+        JSContext* _ctx;
+        JSValue _val;
+
+    protected:
+        friend class QuickJSRuntime;
+    };
+
     String createString(JSValue val)
     {
         return make<String>(new QuickJSStringValue(_ctx, val));
+    }
+
+    Object createObject(JSValue val)
+    {
+        return make<Object>(new QuickJSObjectValue(_ctx, val));
+    }
+
+    String throwException(JSValue val)
+    {
+        // TODO:
+        return make<String>(new QuickJSStringValue(_ctx, JS_ToString(_ctx, JS_GetException(_ctx))));
     }
 
     Value createValue(JSValue val)
@@ -71,8 +105,18 @@ private:
             case JS_TAG_STRING:
                 return createString(val);
 
-            // TODO: rest of types
+            case JS_TAG_OBJECT:
+                return createObject(val);
 
+            case JS_TAG_EXCEPTION:
+                return throwException(val);
+
+            // TODO: rest of types
+            case JS_TAG_BIG_DECIMAL:
+            case JS_TAG_BIG_INT:
+            case JS_TAG_BIG_FLOAT:
+            case JS_TAG_SYMBOL:
+            case JS_TAG_CATCH_OFFSET:
             default:
                 return Value();
         }
@@ -115,7 +159,7 @@ public:
     }
     virtual Object global() override
     {
-        return make<Object>(nullptr);
+        return createObject(JS_GetGlobalObject(_ctx));
     }
     virtual std::string description() override
     {
@@ -135,7 +179,7 @@ public:
     }
     virtual PointerValue* cloneObject(const Runtime::PointerValue* pv) override
     {
-        return nullptr;
+        return new QuickJSObjectValue(_ctx, JS_DupValue(_ctx, static_cast<const QuickJSObjectValue*>(pv)->_val));
     }
     virtual PointerValue* clonePropNameID(const Runtime::PointerValue* pv) override
     {
@@ -182,7 +226,7 @@ public:
     }
     virtual Object createObject() override
     {
-        return make<Object>(nullptr);
+        return createObject(JS_NewObject(_ctx));
     }
     virtual Object createObject(std::shared_ptr<HostObject> ho) override
     {
@@ -218,17 +262,23 @@ public:
     virtual void setPropertyValue(Object&, const String& name, const Value& value) override
     {
     }
-    virtual bool isArray(const Object&) const override
+    virtual bool isArray(const Object& obj) const override
     {
-        return false;
+        const QuickJSObjectValue* qjsObjectValue =
+            static_cast<const QuickJSObjectValue*>(getPointerValue(obj));
+
+        return !!JS_IsArray(_ctx, qjsObjectValue->_val);
     }
     virtual bool isArrayBuffer(const Object&) const override
     {
         return false;
     }
-    virtual bool isFunction(const Object&) const override
+    virtual bool isFunction(const Object& obj) const override
     {
-        return false;
+        const QuickJSObjectValue* qjsObjectValue =
+            static_cast<const QuickJSObjectValue*>(getPointerValue(obj));
+
+        return !!JS_IsFunction(_ctx, qjsObjectValue->_val);
     }
     virtual bool isHostObject(const Object&) const override
     {
@@ -252,11 +302,22 @@ public:
     }
     virtual Array createArray(size_t length) override
     {
-        return createObject().getArray(*this);
+        return createObject(JS_NewArray(_ctx)).getArray(*this);
     }
-    virtual size_t size(const Array&) override
+    virtual size_t size(const Array& arr) override
     {
-        return size_t();
+        const QuickJSObjectValue* qjsObjectValue =
+            static_cast<const QuickJSObjectValue*>(getPointerValue(arr));
+
+        auto len = JS_GetPropertyStr(_ctx, qjsObjectValue->_val, "length");
+
+        int64_t r;
+        if (JS_ToInt64(_ctx, &r, len))
+            ; //throw;
+
+        JS_FreeValue(_ctx, len);
+
+        return static_cast<size_t>(r);
     }
     virtual size_t size(const ArrayBuffer&) override
     {
