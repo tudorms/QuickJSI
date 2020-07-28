@@ -150,8 +150,14 @@
     <ClCompile Include="QuickJSI.cpp" />
     <ClCompile Include="QuickJSITest.cpp" />
     <ClCompile Include="QuickJSRuntime.cpp" />
+    <ClCompile Include="TestMain.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\external\jsi\jsi-inl.h" />
+    <ClInclude Include="..\external\jsi\jsi.h" />
+    <ClInclude Include="..\external\jsi\test\testlib.h" />
+    <ClInclude Include="..\external\quickjspp.hpp" />
+    <ClInclude Include="..\external\quickjs\quickjs.h" />
     <ClInclude Include="QuickJSRuntime.h" />
   </ItemGroup>
   <ItemGroup>

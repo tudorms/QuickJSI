@@ -620,7 +620,7 @@ public:
             JSPropertyEnum* propNamesEnum;
             uint32_t propNamesSize;
             //TODO: check error
-            JS_GetOwnPropertyNames(_context.ctx, &propNamesEnum, &propNamesSize, currentObjectOnPrototypeChain.v, 0);
+            JS_GetOwnPropertyNames(_context.ctx, &propNamesEnum, &propNamesSize, currentObjectOnPrototypeChain.v, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY);
 
             for (uint32_t i = 0; i < propNamesSize; ++i)
             {
@@ -659,7 +659,7 @@ public:
 
     virtual jsi::Array createArray(size_t length) override
     {
-        return createPointerValue<jsi::Object>(qjs::Value { _context.ctx, JS_NewArray(_context.ctx) }).getArray(*this);
+        return createPointerValue<jsi::Object>(_context.newValue(JS_NewArray(_context.ctx))).getArray(*this);
     }
 
     virtual size_t size(const jsi::Array& arr) override
@@ -679,16 +679,16 @@ public:
         std::abort();
     }
 
-    virtual jsi::Value getValueAtIndex(const jsi::Array&, size_t i) override
+    virtual jsi::Value getValueAtIndex(const jsi::Array& arr, size_t i) override
     {
-        // TODO: NYI
-        std::abort();
+        return createValue(JS_GetPropertyUint32(_context.ctx, AsJSValueConst(arr), static_cast<uint32_t>(i)));
     }
 
-    virtual void setValueAtIndexImpl(jsi::Array&, size_t i, const jsi::Value& value) override
+    virtual void setValueAtIndexImpl(jsi::Array& arr, size_t i, const jsi::Value& value) override
     {
-        // TODO: NYI
-        std::abort();
+        auto jsValue = AsJSValueConst(value);
+        JS_DupValue(_context.ctx, jsValue);
+        JS_SetPropertyUint32(_context.ctx, AsJSValueConst(arr), static_cast<uint32_t>(i), jsValue);
     }
 
     virtual jsi::Function createFunctionFromHostFunction(const jsi::PropNameID& name, unsigned int paramCount, jsi::HostFunctionType func) override
