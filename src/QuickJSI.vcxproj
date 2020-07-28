@@ -88,12 +88,11 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>..\external\quickjs;..\external;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <LanguageStandard Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>..\external\quickjs_msvc;..\external;.;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <PreprocessorDefinitions>CONFIG_VERSION="2020-04-12";_GNU_SOURCE;CONFIG_BIGNUM;CONFIG_WIN32;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4703;4996;4146</DisableSpecificWarnings>
     </ClCompile>
-    <Link>
-      <AdditionalDependencies>..\external\quickjs\qjslib.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
@@ -143,16 +142,14 @@
   <ItemGroup>
     <ClCompile Include="..\external\jsi\jsi.cpp" />
     <ClCompile Include="..\external\jsi\test\testlib.cpp" />
+    <ClCompile Include="..\external\quickjs_msvc\quickjs.c" />
+    <ClCompile Include="..\external\quickjs_msvc\libbf.c" />
+    <ClCompile Include="..\external\quickjs_msvc\libunicode.c" />
+    <ClCompile Include="..\external\quickjs_msvc\libregexp.c" />
+    <ClCompile Include="..\external\quickjs_msvc\cutils.c" />
     <ClCompile Include="QuickJSI.cpp" />
     <ClCompile Include="QuickJSITest.cpp" />
     <ClCompile Include="QuickJSRuntime.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <CopyFileToFolders Include="..\external\quickjs\qjslib.dll">
-      <ExcludedFromBuild>false</ExcludedFromBuild>
-      <DeploymentContent>true</DeploymentContent>
-      <FileType>Document</FileType>
-    </CopyFileToFolders>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="QuickJSRuntime.h" />

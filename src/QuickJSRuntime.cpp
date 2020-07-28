@@ -1,5 +1,7 @@
+#include <iostream>
 #include <memory>
 #include <mutex>
+#include <sstream>
 
 #include <quickjs-libc.h>
 #include <quickjspp.hpp>
@@ -213,23 +215,17 @@ private:
 
     std::string getExceptionDetails()
     {
-        JSValue exception_val = JS_GetException(_context.ctx);
+        auto exc = _context.getException();
 
-        if (JS_IsError(_context.ctx, exception_val))
+        std::stringstream strstream;
+        strstream << (std::string) exc << std::endl;
+
+        if (JS_HasProperty(_context.ctx, exc.v, JS_NewAtom(_context.ctx, "stack")))
         {
-            // TODO: we can get message and stack
+            strstream << (std::string) exc["stack"] << std::endl;
         }
 
-        JSValue msg_val = JS_ToString(_context.ctx, exception_val);
-        const char* msg = JS_ToCString(_context.ctx, msg_val);
-
-        std::string message { msg };
-
-        JS_FreeValue(_context.ctx, msg_val);
-        JS_FreeCString(_context.ctx, msg);
-        JS_FreeValue(_context.ctx, exception_val);
-
-        return message;
+        return strstream.str();
     }
 
 public:
