@@ -47,6 +47,45 @@ private:
         friend class QuickJSRuntime;
     };
 
+    // Property ID in QuickJS are Atoms
+    struct QuickJSAtomPointerValue final : public Runtime::PointerValue
+    {
+        QuickJSAtomPointerValue(JSContext* context, JSAtom atom)
+            : _context { context }
+            , _atom { atom }
+        {
+        }
+
+        QuickJSAtomPointerValue(const QuickJSAtomPointerValue& other)
+            : _context { other._context }
+            , _atom { other._atom }
+        {
+            if (_context)
+            {
+                _atom = JS_DupAtom(_context, _atom);
+            }
+        }
+
+        void invalidate() override
+        {
+            if (_context)
+            {
+                JS_FreeAtom(_context, _atom);
+            }
+
+            delete this;
+        }
+
+        JSAtom Atom() const noexcept
+        {
+            return _atom;
+        }
+
+    private:
+        JSContext* _context;
+        JSAtom _atom;
+    };
+
     String createString(qjs::Value&& val)
     {
         return make<String>(new QuickJSPointerValue(std::move(val)));
@@ -60,6 +99,11 @@ private:
     PropNameID createPropNameID(const qjs::Value& val)
     {
         return make<PropNameID>(new QuickJSPointerValue(val));
+    }
+
+    PropNameID createPropNameID(JSAtom atom)
+    {
+        return make<PropNameID>(new QuickJSAtomPointerValue { _context.ctx, atom });
     }
 
     Object createObject(qjs::Value&& val)
@@ -212,17 +256,17 @@ public:
 
     virtual PointerValue* clonePropNameID(const Runtime::PointerValue* pv) override
     {
-        return new QuickJSPointerValue(static_cast<const QuickJSPointerValue*>(pv)->_val);
+        return new QuickJSAtomPointerValue { *static_cast<const QuickJSAtomPointerValue*>(pv) };
     }
 
     virtual PropNameID createPropNameIDFromAscii(const char* str, size_t length) override
     {
-        return createPropNameID(_context.newValue(std::string_view { str, length }));
+        return createPropNameID(JS_NewAtomLen(_context.ctx, str, length));
     }
 
     virtual PropNameID createPropNameIDFromUtf8(const uint8_t* utf8, size_t length) override
     {
-        return createPropNameID(_context.newValue(std::string_view { (const char*) utf8, length }));
+        return createPropNameID(JS_NewAtomLen(_context.ctx, (const char*) utf8, length));
     }
 
     virtual PropNameID createPropNameIDFromString(const String& str) override
@@ -230,21 +274,34 @@ public:
         const QuickJSPointerValue* qjsObjectValue =
             static_cast<const QuickJSPointerValue*>(getPointerValue(str));
 
-        return createPropNameID(qjsObjectValue->_val);
+        return createPropNameID(JS_ValueToAtom(_context.ctx, qjsObjectValue->_val.v));
     }
 
     virtual std::string utf8(const PropNameID& sym) override
     {
-        const QuickJSPointerValue* qjsObjectValue =
-            static_cast<const QuickJSPointerValue*>(getPointerValue(sym));
+        const QuickJSAtomPointerValue* qjsAtomValue =
+            static_cast<const QuickJSAtomPointerValue*>(getPointerValue(sym));
 
-        return qjsObjectValue->_val.as<std::string>();
+        const char* str = JS_AtomToCString(_context.ctx, qjsAtomValue->Atom());
+        if (!str)
+        {
+            // TODO: NYI - report error
+            std::abort();
+        }
+        std::string result { str };
+        JS_FreeCString(_context.ctx, str);
+        return result;
     }
 
-    virtual bool compare(const PropNameID&, const PropNameID&) override
+    virtual bool compare(const PropNameID& left, const PropNameID& right) override
     {
-        // TODO: NYI
-        std::abort();
+        const QuickJSAtomPointerValue* leftAtomValue =
+            static_cast<const QuickJSAtomPointerValue*>(getPointerValue(left));
+
+        const QuickJSAtomPointerValue* rightAtomValue =
+            static_cast<const QuickJSAtomPointerValue*>(getPointerValue(right));
+
+        return leftAtomValue->Atom() == rightAtomValue->Atom();
     }
 
     virtual std::string symbolToString(const Symbol&) override
