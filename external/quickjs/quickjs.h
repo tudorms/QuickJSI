@@ -195,31 +195,15 @@ static inline JS_BOOL JS_VALUE_IS_NAN(JSValue v)
 #else /* !JS_NAN_BOXING */
 
 typedef union JSValueUnion {
+    void *ptr;
     int32_t int32;
     double float64;
-    void *ptr;
 } JSValueUnion;
 
 typedef struct JSValue {
     JSValueUnion u;
     int64_t tag;
 } JSValue;
-
-static inline JSValue MKVAL_FUNC(int32_t int32, int64_t tag)
-{
-    JSValue val;
-    val.tag = tag;
-    val.u.int32 = int32;
-    return val;
-}
-
-static inline JSValue MKPTR_FUNC(void *ptr, int64_t tag)
-{
-    JSValue val;
-    val.tag = tag;
-    val.u.ptr = ptr;
-    return val;
-}
 
 #define JSValueConst JSValue
 
@@ -231,8 +215,17 @@ static inline JSValue MKPTR_FUNC(void *ptr, int64_t tag)
 #define JS_VALUE_GET_FLOAT64(v) ((v).u.float64)
 #define JS_VALUE_GET_PTR(v) ((v).u.ptr)
 
-#define JS_MKVAL(tag, val) MKVAL_FUNC(val, tag)
-#define JS_MKPTR(tag, p) MKPTR_FUNC(p, tag)
+#if defined(_MSC_VER) && defined(__cplusplus)
+#define JS_MKVAL(tag, val) [&](){ JSValue tmp { { (void *)(intptr_t)val }, tag }; return tmp; }()
+#define JS_MKPTR(tag, p) [&](){ JSValue tmp { { p }, tag }; return tmp; }()
+#elif defined(_MSC_VER)
+#define JS_VALUE_CANNOT_BE_CAST 1
+#define JS_MKVAL(tag, val) (JSValue){ { (void *)(intptr_t)(val) }, tag }
+#define JS_MKPTR(tag, p) (JSValue){ { p }, tag }
+#else
+#define JS_MKVAL(tag, val) (JSValue){ (JSValueUnion){ .int32 = val }, tag }
+#define JS_MKPTR(tag, p) (JSValue){ (JSValueUnion){ .ptr = p }, tag }
+#endif
 
 #define JS_TAG_IS_FLOAT64(tag) ((unsigned)(tag) == JS_TAG_FLOAT64)
 
@@ -514,7 +507,7 @@ int JS_IsRegisteredClass(JSRuntime *rt, JSClassID class_id);
 
 static js_force_inline JSValue JS_NewBool(JSContext *ctx, JS_BOOL val)
 {
-    return JS_MKVAL(JS_TAG_BOOL, (val != 0));
+    return JS_MKVAL(JS_TAG_BOOL, val);
 }
 
 static js_force_inline JSValue JS_NewInt32(JSContext *ctx, int32_t val)
@@ -676,7 +669,11 @@ static inline JSValue JS_DupValue(JSContext *ctx, JSValueConst v)
         JSRefCountHeader *p = (JSRefCountHeader *)JS_VALUE_GET_PTR(v);
         p->ref_count++;
     }
+#if defined(JS_VALUE_CANNOT_BE_CAST)
+    return v;
+#else
     return (JSValue)v;
+#endif
 }
 
 static inline JSValue JS_DupValueRT(JSRuntime *rt, JSValueConst v)
@@ -685,7 +682,11 @@ static inline JSValue JS_DupValueRT(JSRuntime *rt, JSValueConst v)
         JSRefCountHeader *p = (JSRefCountHeader *)JS_VALUE_GET_PTR(v);
         p->ref_count++;
     }
+#if defined(JS_VALUE_CANNOT_BE_CAST)
+    return v;
+#else
     return (JSValue)v;
+#endif
 }
 
 int JS_ToBool(JSContext *ctx, JSValueConst val); /* return -1 for JS_EXCEPTION */
@@ -762,7 +763,7 @@ int JS_IsExtensible(JSContext *ctx, JSValueConst obj);
 int JS_PreventExtensions(JSContext *ctx, JSValueConst obj);
 int JS_DeleteProperty(JSContext *ctx, JSValueConst obj, JSAtom prop, int flags);
 int JS_SetPrototype(JSContext *ctx, JSValueConst obj, JSValueConst proto_val);
-JSValue JS_GetPrototype(JSContext *ctx, JSValueConst val);
+JSValueConst JS_GetPrototype(JSContext *ctx, JSValueConst val);
 
 #define JS_GPN_STRING_MASK  (1 << 0)
 #define JS_GPN_SYMBOL_MASK  (1 << 1)
@@ -812,9 +813,6 @@ void *JS_GetOpaque2(JSContext *ctx, JSValueConst obj, JSClassID class_id);
 /* 'buf' must be zero terminated i.e. buf[buf_len] = '\0'. */
 JSValue JS_ParseJSON(JSContext *ctx, const char *buf, size_t buf_len,
                      const char *filename);
-#define JS_PARSE_JSON_EXT (1 << 0) /* allow extended JSON */
-JSValue JS_ParseJSON2(JSContext *ctx, const char *buf, size_t buf_len,
-                      const char *filename, int flags);
 JSValue JS_JSONStringify(JSContext *ctx, JSValueConst obj,
                          JSValueConst replacer, JSValueConst space0);
 
@@ -829,14 +827,6 @@ JSValue JS_GetTypedArrayBuffer(JSContext *ctx, JSValueConst obj,
                                size_t *pbyte_offset,
                                size_t *pbyte_length,
                                size_t *pbytes_per_element);
-typedef struct {
-    void *(*sab_alloc)(void *opaque, size_t size);
-    void (*sab_free)(void *opaque, void *ptr);
-    void (*sab_dup)(void *opaque, void *ptr);
-    void *sab_opaque;
-} JSSharedArrayBufferFunctions;
-void JS_SetSharedArrayBufferFunctions(JSRuntime *rt,
-                                      const JSSharedArrayBufferFunctions *sf);
 
 JSValue JS_NewPromiseCapability(JSContext *ctx, JSValue *resolving_funcs);
 
@@ -880,24 +870,14 @@ JS_BOOL JS_IsJobPending(JSRuntime *rt);
 int JS_ExecutePendingJob(JSRuntime *rt, JSContext **pctx);
 
 /* Object Writer/Reader (currently only used to handle precompiled code) */
-#define JS_WRITE_OBJ_BYTECODE  (1 << 0) /* allow function/module */
-#define JS_WRITE_OBJ_BSWAP     (1 << 1) /* byte swapped output */
-#define JS_WRITE_OBJ_SAB       (1 << 2) /* allow SharedArrayBuffer */
-#define JS_WRITE_OBJ_REFERENCE (1 << 3) /* allow object references to
-                                           encode arbitrary object
-                                           graph */
+#define JS_WRITE_OBJ_BYTECODE (1 << 0) /* allow function/module */
+#define JS_WRITE_OBJ_BSWAP    (1 << 1) /* byte swapped output */
 uint8_t *JS_WriteObject(JSContext *ctx, size_t *psize, JSValueConst obj,
                         int flags);
-uint8_t *JS_WriteObject2(JSContext *ctx, size_t *psize, JSValueConst obj,
-                         int flags, uint8_t ***psab_tab, size_t *psab_tab_len);
-
 #define JS_READ_OBJ_BYTECODE  (1 << 0) /* allow function/module */
 #define JS_READ_OBJ_ROM_DATA  (1 << 1) /* avoid duplicating 'buf' data */
-#define JS_READ_OBJ_SAB       (1 << 2) /* allow SharedArrayBuffer */
-#define JS_READ_OBJ_REFERENCE (1 << 3) /* allow object references */
 JSValue JS_ReadObject(JSContext *ctx, const uint8_t *buf, size_t buf_len,
                       int flags);
-
 /* load the dependencies of the module 'obj'. Useful when JS_ReadObject()
    returns a module. */
 int JS_ResolveModule(JSContext *ctx, JSValueConst obj);

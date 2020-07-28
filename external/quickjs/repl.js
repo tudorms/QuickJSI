@@ -209,29 +209,6 @@ import * as os from "os";
             (is_alpha(c) || is_digit(c) || c == '_' || c == '$');
     }
 
-    function ucs_length(str) {
-        var len, c, i, str_len = str.length;
-        len = 0;
-        /* we never count the trailing surrogate to have the
-         following property: ucs_length(str) =
-         ucs_length(str.substring(0, a)) + ucs_length(str.substring(a,
-         str.length)) for 0 <= a <= str.length */
-        for(i = 0; i < str_len; i++) {
-            c = str.charCodeAt(i);
-            if (c < 0xdc00 || c >= 0xe000)
-                len++;
-        }
-        return len;
-    }
-
-    function is_trailing_surrogate(c)  {
-        var d;
-        if (typeof c !== "string")
-            return false;
-        d = c.codePointAt(0); /* can be NaN if empty string */
-        return d >= 0xdc00 && d < 0xe000;
-    }
-    
     function is_balanced(a, b) {
         switch (a + b) {
         case "()":
@@ -258,7 +235,6 @@ import * as os from "os";
         std.puts("\x1b[" + ((n != 1) ? n : "") + code);
     }
 
-    /* XXX: handle double-width characters */
     function move_cursor(delta) {
         var i, l;
         if (delta > 0) {
@@ -293,16 +269,15 @@ import * as os from "os";
     }
 
     function update() {
-        var i, cmd_len;
-        /* cursor_pos is the position in 16 bit characters inside the
-           UTF-16 string 'cmd' */
+        var i;
+
         if (cmd != last_cmd) {
             if (!show_colors && last_cmd.substring(0, last_cursor_pos) == cmd.substring(0, last_cursor_pos)) {
                 /* optimize common case */
                 std.puts(cmd.substring(last_cursor_pos));
             } else {
                 /* goto the start of the line */
-                move_cursor(-ucs_length(last_cmd.substring(0, last_cursor_pos)));
+                move_cursor(-last_cursor_pos);
                 if (show_colors) {
                     var str = mexpr ? mexpr + '\n' + cmd : cmd;
                     var start = str.length - cmd.length;
@@ -312,7 +287,8 @@ import * as os from "os";
                     std.puts(cmd);
                 }
             }
-            term_cursor_x = (term_cursor_x + ucs_length(cmd)) % term_width;
+            /* Note: assuming no surrogate pairs */
+            term_cursor_x = (term_cursor_x + cmd.length) % term_width;
             if (term_cursor_x == 0) {
                 /* show the cursor on the next line */
                 std.puts(" \x08");
@@ -322,11 +298,7 @@ import * as os from "os";
             last_cmd = cmd;
             last_cursor_pos = cmd.length;
         }
-        if (cursor_pos > last_cursor_pos) {
-            move_cursor(ucs_length(cmd.substring(last_cursor_pos, cursor_pos)));
-        } else if (cursor_pos < last_cursor_pos) {
-            move_cursor(-ucs_length(cmd.substring(cursor_pos, last_cursor_pos)));
-        }
+        move_cursor(cursor_pos - last_cursor_pos);
         last_cursor_pos = cursor_pos;
         std.out.flush();
     }
@@ -361,19 +333,13 @@ import * as os from "os";
     }
 
     function forward_char() {
-        if (cursor_pos < cmd.length) {
+        if (cursor_pos < cmd.length)
             cursor_pos++;
-            while (is_trailing_surrogate(cmd.charAt(cursor_pos)))
-                cursor_pos++;
-        }
     }
 
     function backward_char() {
-        if (cursor_pos > 0) {
+        if (cursor_pos > 0)
             cursor_pos--;
-            while (is_trailing_surrogate(cmd.charAt(cursor_pos)))
-                cursor_pos--;
-        }
     }
 
     function skip_word_forward(pos) {
@@ -453,18 +419,8 @@ import * as os from "os";
     }
 
     function delete_char_dir(dir) {
-        var start, end;
-
-        start = cursor_pos;
-        if (dir < 0) {
-            start--;
-            while (is_trailing_surrogate(cmd.charAt(start)))
-                start--;
-        }
-        end = start + 1;
-        while (is_trailing_surrogate(cmd.charAt(end)))
-            end++;
-
+        var start = cursor_pos - (dir < 0);
+        var end = start + 1;
         if (start >= 0 && start < cmd.length) {
             if (last_fun === kill_region) {
                 kill_region(start, end, dir);
@@ -796,7 +752,7 @@ import * as os from "os";
     function readline_print_prompt()
     {
         std.puts(prompt);
-        term_cursor_x = ucs_length(prompt) % term_width;
+        term_cursor_x = prompt.length % term_width;
         last_cmd = "";
         last_cursor_pos = 0;
     }
@@ -829,7 +785,7 @@ import * as os from "os";
 
     function handle_char(c1) {
         var c;
-        c = String.fromCodePoint(c1);
+        c = String.fromCharCode(c1);
         switch(readline_state) {
         case 0:
             if (c == '\x1b') {  /* '^[' - ESC */
@@ -869,7 +825,7 @@ import * as os from "os";
         var fun;
 
         if (quote_flag) {
-            if (ucs_length(keys) === 1)
+            if (keys.length === 1)
                 insert(keys);
             quote_flag = false;
         } else if (fun = commands[keys]) {
@@ -889,7 +845,7 @@ import * as os from "os";
                 return;
             }
             last_fun = this_fun;
-        } else if (ucs_length(keys) === 1 && keys >= ' ') {
+        } else if (keys.length === 1 && keys >= ' ') {
             insert(keys);
             last_fun = insert;
         } else {
