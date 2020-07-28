@@ -14,6 +14,70 @@ private:
     JSRuntime* _rt;
     JSContext* _ctx;
 
+    class QuickJSStringValue final : public Runtime::PointerValue
+    {
+        QuickJSStringValue(JSContext* ctx, JSValue val) :
+            _ctx(ctx), _val(JS_DupValue(ctx, val))
+        {
+            size_t plen;
+            _ptr = JS_ToCStringLen(_ctx, &plen, val);
+            //if (!ptr) throw JSError(*this, "OOM");
+        }
+
+        void invalidate() override
+        {
+            JS_FreeCString(_ctx, _ptr);
+            _ptr = nullptr;
+
+            JS_FreeValue(_ctx, _val);
+
+            delete this;
+        }
+
+    private:
+        JSContext* _ctx;
+        JSValue _val;
+        const char* _ptr;
+
+    protected:
+        friend class QuickJSRuntime;
+    };
+
+    String createString(JSValue val)
+    {
+        return make<String>(new QuickJSStringValue(_ctx, val));
+    }
+
+    Value createValue(JSValue val)
+    {
+        switch (JS_VALUE_GET_TAG(val))
+        {
+            case JS_TAG_INT:
+                return Value(JS_VALUE_GET_INT(val));
+
+            case JS_TAG_FLOAT64:
+                return Value(JS_VALUE_GET_FLOAT64(val));
+
+            case JS_TAG_BOOL:
+                return Value(JS_VALUE_GET_BOOL(val));
+
+            case JS_TAG_UNDEFINED:
+                return Value();
+
+            case JS_TAG_NULL:
+            case JS_TAG_UNINITIALIZED:
+                return Value(nullptr);
+
+            case JS_TAG_STRING:
+                return createString(val);
+
+            // TODO: rest of types
+
+            default:
+                return Value();
+        }
+    }
+
 public:
     QuickJSRuntime(QuickJSRuntimeArgs&& args)
     {
@@ -33,11 +97,11 @@ public:
     {
         JSValue val = JS_Eval(_ctx, reinterpret_cast<const char*>(buffer->data()), buffer->size(), sourceURL.c_str(), 0);
 
-        // TODO: JSValue to jsi::Value
+        auto result = createValue(val);
 
         JS_FreeValue(_ctx, val);
 
-        return Value();
+        return result;
     }
 
     virtual std::shared_ptr<const PreparedJavaScript> prepareJavaScript(const std::shared_ptr<const Buffer>& buffer, std::string sourceURL) override
@@ -67,7 +131,7 @@ public:
     }
     virtual PointerValue* cloneString(const Runtime::PointerValue* pv) override
     {
-        return nullptr;
+        return new QuickJSStringValue(_ctx, JS_DupValue(_ctx, static_cast<const QuickJSStringValue*>(pv)->_val));
     }
     virtual PointerValue* cloneObject(const Runtime::PointerValue* pv) override
     {
@@ -109,9 +173,12 @@ public:
     {
         return make<String>(nullptr);
     }
-    virtual std::string utf8(const String&) override
+    virtual std::string utf8(const String& str) override
     {
-        return std::string();
+        const QuickJSStringValue* qjsStringValue =
+            static_cast<const QuickJSStringValue*>(getPointerValue(str));
+
+        return std::string(qjsStringValue->_ptr);
     }
     virtual Object createObject() override
     {
