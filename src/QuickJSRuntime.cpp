@@ -152,6 +152,11 @@ private:
         {
             return _context.newValue(value.getNumber());
         }
+        else if (value.isSymbol())
+        {
+            // TODO: Validate me!
+            return QuickJSPointerValue::GetValue(getPointerValue(value.getSymbol(*this)));
+        }
         else if (value.isString())
         {
             // TODO: Validate me!
