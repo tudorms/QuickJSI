@@ -1,6 +1,7 @@
 #include <memory>
 
 #include <quickjs-libc.h>
+#include <quickjspp.hpp>
 
 #include "QuickJSRuntime.h"
 
@@ -11,89 +12,61 @@ namespace quickjs {
 class QuickJSRuntime : public facebook::jsi::Runtime
 {
 private:
-    JSRuntime* _rt;
-    JSContext* _ctx;
+    qjs::Runtime _runtime;
+    qjs::Context _context;
 
-    class QuickJSStringValue final : public Runtime::PointerValue
+    class QuickJSPointerValue final : public Runtime::PointerValue
     {
-        QuickJSStringValue(JSContext* ctx, JSValue val) :
-            _ctx(ctx), _val(JS_DupValue(ctx, val))
+        QuickJSPointerValue(qjs::Value&& val) :
+            _val(std::move(val))
         {
-            size_t plen;
-            _ptr = JS_ToCStringLen(_ctx, &plen, val);
-            //if (!ptr) throw JSError(*this, "OOM");
+        }
+
+        QuickJSPointerValue(const qjs::Value& val) :
+            _val(val)
+        {
         }
 
         void invalidate() override
         {
-            JS_FreeCString(_ctx, _ptr);
-            _ptr = nullptr;
-
-            JS_FreeValue(_ctx, _val);
-
             delete this;
         }
 
     private:
-        JSContext* _ctx;
-        JSValue _val;
-        const char* _ptr;
+        qjs::Value _val;
 
     protected:
         friend class QuickJSRuntime;
     };
 
-    class QuickJSObjectValue final : public Runtime::PointerValue
+    String createString(qjs::Value&& val)
     {
-        QuickJSObjectValue(JSContext* ctx, JSValue val) :
-            _ctx(ctx), _val(JS_DupValue(ctx, val))
-        {
-            //if (JS_IsException(val)) throw;
-        }
-
-        void invalidate() override
-        {
-            JS_FreeValue(_ctx, _val);
-
-            delete this;
-        }
-
-    private:
-        JSContext* _ctx;
-        JSValue _val;
-
-    protected:
-        friend class QuickJSRuntime;
-    };
-
-    String createString(JSValue val)
-    {
-        return make<String>(new QuickJSStringValue(_ctx, val));
+        return make<String>(new QuickJSPointerValue(std::move(val)));
     }
 
-    Object createObject(JSValue val)
+    Object createObject(qjs::Value&& val)
     {
-        return make<Object>(new QuickJSObjectValue(_ctx, val));
+        return make<Object>(new QuickJSPointerValue(std::move(val)));
     }
 
-    String throwException(JSValue val)
+    String throwException(qjs::Value&& val)
     {
         // TODO:
-        return make<String>(new QuickJSStringValue(_ctx, JS_ToString(_ctx, JS_GetException(_ctx))));
+        return make<String>(new QuickJSPointerValue(_context.getException()));
     }
 
-    Value createValue(JSValue val)
+    Value createValue(qjs::Value&& val)
     {
-        switch (JS_VALUE_GET_TAG(val))
+        switch (val.getTag())
         {
             case JS_TAG_INT:
-                return Value(JS_VALUE_GET_INT(val));
+                return Value(static_cast<int>(val.as<int64_t>()));
 
             case JS_TAG_FLOAT64:
-                return Value(JS_VALUE_GET_FLOAT64(val));
+                return Value(val.as<double>());
 
             case JS_TAG_BOOL:
-                return Value(JS_VALUE_GET_BOOL(val));
+                return Value(val.as<bool>());
 
             case JS_TAG_UNDEFINED:
                 return Value();
@@ -103,13 +76,13 @@ private:
                 return Value(nullptr);
 
             case JS_TAG_STRING:
-                return createString(val);
+                return createString(std::move(val));
 
             case JS_TAG_OBJECT:
-                return createObject(val);
+                return createObject(std::move(val));
 
             case JS_TAG_EXCEPTION:
-                return throwException(val);
+                return throwException(std::move(val));
 
             // TODO: rest of types
             case JS_TAG_BIG_DECIMAL:
@@ -123,28 +96,19 @@ private:
     }
 
 public:
-    QuickJSRuntime(QuickJSRuntimeArgs&& args)
+    QuickJSRuntime(QuickJSRuntimeArgs&& args) :
+        _runtime(), _context(_runtime)
     {
-        _rt = JS_NewRuntime();
-        js_std_init_handlers(_rt);
-        _ctx = JS_NewContext(_rt);
     }
 
     ~QuickJSRuntime()
     {
-        js_std_free_handlers(_rt);
-        JS_FreeContext(_ctx);
-        JS_FreeRuntime(_rt);
     }
 
     virtual Value evaluateJavaScript(const std::shared_ptr<const Buffer>& buffer, const std::string& sourceURL) override
     {
-        JSValue val = JS_Eval(_ctx, reinterpret_cast<const char*>(buffer->data()), buffer->size(), sourceURL.c_str(), 0);
-
-        auto result = createValue(val);
-
-        JS_FreeValue(_ctx, val);
-
+        auto val = _context.eval(reinterpret_cast<const char*>(buffer->data()), sourceURL.c_str());
+        auto result = createValue(std::move(val));
         return result;
     }
 
@@ -159,11 +123,11 @@ public:
     }
     virtual Object global() override
     {
-        return createObject(JS_GetGlobalObject(_ctx));
+        return createObject(_context.global());
     }
     virtual std::string description() override
     {
-        return std::string();
+        return "QuickJS";
     }
     virtual bool isInspectable() override
     {
@@ -171,19 +135,20 @@ public:
     }
     virtual PointerValue* cloneSymbol(const Runtime::PointerValue* pv) override
     {
-        return nullptr;
+        return new QuickJSPointerValue(static_cast<const QuickJSPointerValue*>(pv)->_val);
     }
     virtual PointerValue* cloneString(const Runtime::PointerValue* pv) override
     {
-        return new QuickJSStringValue(_ctx, JS_DupValue(_ctx, static_cast<const QuickJSStringValue*>(pv)->_val));
+        // TODO: validate this calls the copy constructor
+        return new QuickJSPointerValue(static_cast<const QuickJSPointerValue*>(pv)->_val);
     }
     virtual PointerValue* cloneObject(const Runtime::PointerValue* pv) override
     {
-        return new QuickJSObjectValue(_ctx, JS_DupValue(_ctx, static_cast<const QuickJSObjectValue*>(pv)->_val));
+        return new QuickJSPointerValue(static_cast<const QuickJSPointerValue*>(pv)->_val);
     }
     virtual PointerValue* clonePropNameID(const Runtime::PointerValue* pv) override
     {
-        return nullptr;
+        return new QuickJSPointerValue(static_cast<const QuickJSPointerValue*>(pv)->_val);
     }
     virtual PropNameID createPropNameIDFromAscii(const char* str, size_t length) override
     {
@@ -219,14 +184,14 @@ public:
     }
     virtual std::string utf8(const String& str) override
     {
-        const QuickJSStringValue* qjsStringValue =
-            static_cast<const QuickJSStringValue*>(getPointerValue(str));
+        const QuickJSPointerValue* qjsStringValue =
+            static_cast<const QuickJSPointerValue*>(getPointerValue(str));
 
-        return std::string(qjsStringValue->_ptr);
+        return qjsStringValue->_val.as<std::string>();
     }
     virtual Object createObject() override
     {
-        return createObject(JS_NewObject(_ctx));
+        return createObject(_context.newObject());
     }
     virtual Object createObject(std::shared_ptr<HostObject> ho) override
     {
@@ -264,10 +229,10 @@ public:
     }
     virtual bool isArray(const Object& obj) const override
     {
-        const QuickJSObjectValue* qjsObjectValue =
-            static_cast<const QuickJSObjectValue*>(getPointerValue(obj));
+        const QuickJSPointerValue* qjsObjectValue =
+            static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
 
-        return !!JS_IsArray(_ctx, qjsObjectValue->_val);
+        return qjsObjectValue->_val.isArray();
     }
     virtual bool isArrayBuffer(const Object&) const override
     {
@@ -275,10 +240,10 @@ public:
     }
     virtual bool isFunction(const Object& obj) const override
     {
-        const QuickJSObjectValue* qjsObjectValue =
-            static_cast<const QuickJSObjectValue*>(getPointerValue(obj));
+        const QuickJSPointerValue* qjsObjectValue =
+            static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
 
-        return !!JS_IsFunction(_ctx, qjsObjectValue->_val);
+        return qjsObjectValue->_val.isFunction();
     }
     virtual bool isHostObject(const Object&) const override
     {
@@ -302,22 +267,14 @@ public:
     }
     virtual Array createArray(size_t length) override
     {
-        return createObject(JS_NewArray(_ctx)).getArray(*this);
+        return createObject(qjs::Value { _context.ctx, JS_NewArray(_context.ctx) }).getArray(*this);
     }
     virtual size_t size(const Array& arr) override
     {
-        const QuickJSObjectValue* qjsObjectValue =
-            static_cast<const QuickJSObjectValue*>(getPointerValue(arr));
+        const QuickJSPointerValue* qjsObjectValue =
+            static_cast<const QuickJSPointerValue*>(getPointerValue(arr));
 
-        auto len = JS_GetPropertyStr(_ctx, qjsObjectValue->_val, "length");
-
-        int64_t r;
-        if (JS_ToInt64(_ctx, &r, len))
-            ; //throw;
-
-        JS_FreeValue(_ctx, len);
-
-        return static_cast<size_t>(r);
+        return static_cast<int32_t>(qjsObjectValue->_val["length"]);
     }
     virtual size_t size(const ArrayBuffer&) override
     {
