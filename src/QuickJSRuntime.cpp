@@ -66,6 +66,11 @@ private:
             return static_cast<const QuickJSPointerValue*>(pv)->_val.v;
         }
 
+        static qjs::Value GetValue(const PointerValue* pv) noexcept
+        {
+            return static_cast<const QuickJSPointerValue*>(pv)->_val;
+        }
+
     private:
         qjs::Value _val;
 
@@ -154,16 +159,12 @@ private:
         else if (value.isString())
         {
             // TODO: Validate me!
-            const QuickJSPointerValue* qjsObjectValue =
-                static_cast<const QuickJSPointerValue*>(getPointerValue(value.asString(*this)));
-            return qjsObjectValue->_val;
+            return QuickJSPointerValue::GetValue(getPointerValue(value.asString(*this)));
         }
         else if (value.isObject())
         {
             // TODO: Validate me!
-            const QuickJSPointerValue* qjsObjectValue =
-                static_cast<const QuickJSPointerValue*>(getPointerValue(value.getObject(*this)));
-            return qjsObjectValue->_val;
+            return QuickJSPointerValue::GetValue(getPointerValue(value.asString(*this)));
         }
         else
         {
@@ -341,17 +342,17 @@ public:
 
     virtual PointerValue* cloneSymbol(const Runtime::PointerValue* pv) override
     {
-        return new QuickJSPointerValue(static_cast<const QuickJSPointerValue*>(pv)->_val);
+        return new QuickJSPointerValue(QuickJSPointerValue::GetValue(pv));
     }
 
     virtual PointerValue* cloneString(const Runtime::PointerValue* pv) override
     {
-        return new QuickJSPointerValue(static_cast<const QuickJSPointerValue*>(pv)->_val);
+        return new QuickJSPointerValue(QuickJSPointerValue::GetValue(pv));
     }
 
     virtual PointerValue* cloneObject(const Runtime::PointerValue* pv) override
     {
-        return new QuickJSPointerValue(static_cast<const QuickJSPointerValue*>(pv)->_val);
+        return new QuickJSPointerValue(QuickJSPointerValue::GetValue(pv));
     }
 
     virtual PointerValue* clonePropNameID(const Runtime::PointerValue* pv) override
@@ -410,10 +411,7 @@ public:
 
     virtual std::string utf8(const jsi::String& str) override
     {
-        const QuickJSPointerValue* qjsStringValue =
-            static_cast<const QuickJSPointerValue*>(getPointerValue(str));
-
-        return qjsStringValue->_val.as<std::string>();
+        return QuickJSPointerValue::GetValue(getPointerValue(str)).as<std::string>();
     }
 
     virtual jsi::Object createObject() override
@@ -525,12 +523,9 @@ public:
 
     virtual jsi::Value getProperty(const jsi::Object& obj, const jsi::String& name) override
     {
-        const QuickJSPointerValue* qjsObjectValue =
-            static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
-
         auto propName = utf8(name);
 
-        return createValue(qjsObjectValue->_val[propName.c_str()]);
+        return createValue(QuickJSPointerValue::GetValue(getPointerValue(obj))[propName.c_str()]);
     }
 
     virtual bool hasProperty(const jsi::Object& obj, const jsi::PropNameID& name) override
@@ -554,20 +549,14 @@ public:
 
     virtual void setPropertyValue(jsi::Object& obj, const jsi::String& name, const jsi::Value& value) override
     {
-        QuickJSPointerValue* qjsObjectValue =
-            static_cast<QuickJSPointerValue*>(const_cast<PointerValue*>(getPointerValue(obj)));
-
         auto propName = utf8(name);
 
-        qjsObjectValue->_val[propName.c_str()] = fromJSIValue(value);
+        QuickJSPointerValue::GetValue(getPointerValue(obj))[propName.c_str()] = fromJSIValue(value);
     }
 
     virtual bool isArray(const jsi::Object& obj) const override
     {
-        const QuickJSPointerValue* qjsObjectValue =
-            static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
-
-        return qjsObjectValue->_val.isArray();
+        return QuickJSPointerValue::GetValue(getPointerValue(obj)).isArray();
     }
 
     virtual bool isArrayBuffer(const jsi::Object&) const override
@@ -578,10 +567,7 @@ public:
 
     virtual bool isFunction(const jsi::Object& obj) const override
     {
-        const QuickJSPointerValue* qjsObjectValue =
-            static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
-
-        return qjsObjectValue->_val.isFunction();
+        return QuickJSPointerValue::GetValue(getPointerValue(obj)).isFunction();
     }
 
     virtual bool isHostObject(const jsi::Object&) const override
@@ -669,10 +655,7 @@ public:
 
     virtual size_t size(const jsi::Array& arr) override
     {
-        const QuickJSPointerValue* qjsObjectValue =
-            static_cast<const QuickJSPointerValue*>(getPointerValue(arr));
-
-        return static_cast<int32_t>(qjsObjectValue->_val["length"]);
+        return static_cast<int32_t>(QuickJSPointerValue::GetValue(getPointerValue(arr))["length"]);
     }
 
     virtual size_t size(const jsi::ArrayBuffer&) override
@@ -731,14 +714,12 @@ public:
 
     virtual bool strictEquals(const jsi::String& a, const jsi::String& b) const override
     {
-        // TODO: NYI
-        std::abort();
+        return QuickJSPointerValue::GetValue(getPointerValue(a)).as<std::string>() == QuickJSPointerValue::GetValue(getPointerValue(b)).as<std::string>();
     }
 
     virtual bool strictEquals(const jsi::Object& a, const jsi::Object& b) const override
     {
-        // TODO: NYI
-        std::abort();
+        return QuickJSPointerValue::GetValue(getPointerValue(a)) == QuickJSPointerValue::GetValue(getPointerValue(b));
     }
 
     virtual bool instanceOf(const jsi::Object& o, const jsi::Function& f) override
