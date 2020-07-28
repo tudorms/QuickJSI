@@ -509,10 +509,58 @@ public:
         std::abort();
     }
 
-    virtual Array getPropertyNames(const Object&) override
+    virtual Array getPropertyNames(const Object& obj) override
     {
-        // TODO: NYI
-        std::abort();
+        // Handle to the null JS value.
+        qjs::Value jsNull = _context.newValue(JS_NULL);
+
+        // Handle to the Object constructor.
+        qjs::Value objectConstructor = _context.global()["Object"];
+
+        // Handle to the Object.prototype Object.
+        qjs::Value objectPrototype = objectConstructor["prototype"];
+
+        // Handle to the Object.prototype.propertyIsEnumerable() Function.
+        qjs::Value objectPrototypePropertyIsEnumerable = objectPrototype["propertyIsEnumerable"];
+
+        // We now traverse the object's property chain and collect all enumerable
+        // property names.
+        std::vector < qjs::Value> enumerablePropNames {};
+        qjs::Value currentObjectOnPrototypeChain = _context.newValue(AsJSValue(obj));
+
+        // We have a small optimization here where we stop traversing the prototype
+        // chain as soon as we hit Object.prototype. However, we still need to check
+        // for null here, as one can create an Object with no prototype through
+        // Object.create(null).
+        while (currentObjectOnPrototypeChain != objectPrototype &&
+            currentObjectOnPrototypeChain != jsNull)
+        {
+            JSPropertyEnum* propNamesEnum;
+            uint32_t propNamesSize;
+            //TODO: check error
+            JS_GetOwnPropertyNames(_context.ctx, &propNamesEnum, &propNamesSize, currentObjectOnPrototypeChain.v, 0);
+
+            for (uint32_t i = 0; i < propNamesSize; ++i)
+            {
+                JSPropertyEnum* propName = propNamesEnum + i;
+                if (propName->is_enumerable)
+                {
+                    enumerablePropNames.emplace_back(_context.newValue(JS_AtomToValue(_context.ctx, propName->atom)));
+                }
+            }
+
+            currentObjectOnPrototypeChain = _context.newValue(JS_GetPrototype(_context.ctx, currentObjectOnPrototypeChain.v));
+        }
+
+        size_t enumerablePropNamesSize = enumerablePropNames.size();
+        facebook::jsi::Array result = createArray(enumerablePropNamesSize);
+
+        for (size_t i = 0; i < enumerablePropNamesSize; ++i)
+        {
+            result.setValueAtIndex(*this, i, createString(std::move(enumerablePropNames[i])));
+        }
+
+        return result;
     }
 
     virtual WeakObject createWeakObject(const Object&) override
