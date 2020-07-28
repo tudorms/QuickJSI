@@ -76,9 +76,9 @@ private:
             delete this;
         }
 
-        JSAtom Atom() const noexcept
+        static JSAtom GetJSAtom(const PointerValue * pv) noexcept
         {
-            return _atom;
+            return static_cast<const QuickJSAtomPointerValue *>(pv)->_atom;
         }
 
     private:
@@ -195,6 +195,11 @@ private:
         }
     }
 
+    static JSAtom AsJSAtom(const PropNameID& propertyId) noexcept
+    {
+        return QuickJSAtomPointerValue::GetJSAtom(getPointerValue(propertyId));
+    }
+
 public:
     QuickJSRuntime(QuickJSRuntimeArgs&& args) :
         _runtime(), _context(_runtime)
@@ -279,10 +284,7 @@ public:
 
     virtual std::string utf8(const PropNameID& sym) override
     {
-        const QuickJSAtomPointerValue* qjsAtomValue =
-            static_cast<const QuickJSAtomPointerValue*>(getPointerValue(sym));
-
-        const char* str = JS_AtomToCString(_context.ctx, qjsAtomValue->Atom());
+        const char* str = JS_AtomToCString(_context.ctx, AsJSAtom(sym));
         if (!str)
         {
             // TODO: NYI - report error
@@ -295,13 +297,7 @@ public:
 
     virtual bool compare(const PropNameID& left, const PropNameID& right) override
     {
-        const QuickJSAtomPointerValue* leftAtomValue =
-            static_cast<const QuickJSAtomPointerValue*>(getPointerValue(left));
-
-        const QuickJSAtomPointerValue* rightAtomValue =
-            static_cast<const QuickJSAtomPointerValue*>(getPointerValue(right));
-
-        return leftAtomValue->Atom() == rightAtomValue->Atom();
+        return AsJSAtom(left) == AsJSAtom(right);
     }
 
     virtual std::string symbolToString(const Symbol&) override
