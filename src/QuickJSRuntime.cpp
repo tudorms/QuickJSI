@@ -6,7 +6,7 @@
 
 #include "QuickJSRuntime.h"
 
-using namespace facebook::jsi;
+using namespace facebook;
 
 namespace quickjs {
 
@@ -17,13 +17,13 @@ JSClassExoticMethods g_hostObjectExoticMethods;
 JSClassDef g_hostObjectClassDef;
 } // namespace
 
-class QuickJSRuntime : public facebook::jsi::Runtime
+class QuickJSRuntime : public jsi::Runtime
 {
 private:
     qjs::Runtime _runtime;
     qjs::Context _context;
 
-    class QuickJSPointerValue final : public Runtime::PointerValue
+    class QuickJSPointerValue final : public jsi::Runtime::PointerValue
     {
         QuickJSPointerValue(qjs::Value&& val) :
             _val(std::move(val))
@@ -53,7 +53,7 @@ private:
     };
 
     // Property ID in QuickJS are Atoms
-    struct QuickJSAtomPointerValue final : public Runtime::PointerValue
+    struct QuickJSAtomPointerValue final : public jsi::Runtime::PointerValue
     {
         QuickJSAtomPointerValue(JSContext* context, JSAtom atom)
             : _context { context }
@@ -91,28 +91,28 @@ private:
         JSAtom _atom;
     };
 
-    String createString(qjs::Value&& val)
+    jsi::String createString(qjs::Value&& val)
     {
-        return make<String>(new QuickJSPointerValue(std::move(val)));
+        return make<jsi::String>(new QuickJSPointerValue(std::move(val)));
     }
 
-    PropNameID createPropNameID(JSAtom atom)
+    jsi::PropNameID createPropNameID(JSAtom atom)
     {
-        return make<PropNameID>(new QuickJSAtomPointerValue { _context.ctx, atom });
+        return make<jsi::PropNameID>(new QuickJSAtomPointerValue { _context.ctx, atom });
     }
 
-    Object createObject(qjs::Value&& val)
+    jsi::Object createObject(qjs::Value&& val)
     {
-        return make<Object>(new QuickJSPointerValue(std::move(val)));
+        return make<jsi::Object>(new QuickJSPointerValue(std::move(val)));
     }
 
-    String throwException(qjs::Value&& val)
+    jsi::String throwException(qjs::Value&& val)
     {
         // TODO:
-        return make<String>(new QuickJSPointerValue(_context.getException()));
+        return make<jsi::String>(new QuickJSPointerValue(_context.getException()));
     }
 
-    qjs::Value fromJSIValue(const Value& value)
+    qjs::Value fromJSIValue(const jsi::Value& value)
     {
         if (value.isUndefined())
         {
@@ -150,30 +150,30 @@ private:
         }
     }
 
-    Value createValue(JSValue&& jsValue)
+    jsi::Value createValue(JSValue&& jsValue)
     {
         return createValue(_context.newValue(std::move(jsValue)));
     }
 
-    Value createValue(qjs::Value&& val)
+    jsi::Value createValue(qjs::Value&& val)
     {
         switch (val.getTag())
         {
             case JS_TAG_INT:
-                return Value(static_cast<int>(val.as<int64_t>()));
+                return jsi::Value(static_cast<int>(val.as<int64_t>()));
 
             case JS_TAG_FLOAT64:
-                return Value(val.as<double>());
+                return jsi::Value(val.as<double>());
 
             case JS_TAG_BOOL:
-                return Value(val.as<bool>());
+                return jsi::Value(val.as<bool>());
 
             case JS_TAG_UNDEFINED:
-                return Value();
+                return jsi::Value();
 
             case JS_TAG_NULL:
             case JS_TAG_UNINITIALIZED:
-                return Value(nullptr);
+                return jsi::Value(nullptr);
 
             case JS_TAG_STRING:
                 return createString(std::move(val));
@@ -191,11 +191,11 @@ private:
             case JS_TAG_SYMBOL:
             case JS_TAG_CATCH_OFFSET:
             default:
-                return Value();
+                return jsi::Value();
         }
     }
 
-    static JSAtom AsJSAtom(const PropNameID& propertyId) noexcept
+    static JSAtom AsJSAtom(const jsi::PropNameID& propertyId) noexcept
     {
         return QuickJSAtomPointerValue::GetJSAtom(getPointerValue(propertyId));
     }
@@ -206,9 +206,30 @@ private:
         return QuickJSPointerValue::GetJSValue(getPointerValue(obj));
     }
 
-    JSValue AsJSValue(const Value& value) noexcept
+    JSValue AsJSValue(const jsi::Value& value) noexcept
     {
         return fromJSIValue(value).v;
+    }
+
+    std::string getExceptionDetails()
+    {
+        JSValue exception_val = JS_GetException(_context.ctx);
+
+        if (JS_IsError(_context.ctx, exception_val))
+        {
+            // TODO: we can get message and stack
+        }
+
+        JSValue msg_val = JS_ToString(_context.ctx, exception_val);
+        const char* msg = JS_ToCString(_context.ctx, msg_val);
+
+        std::string message { msg };
+
+        JS_FreeValue(_context.ctx, msg_val);
+        JS_FreeCString(_context.ctx, msg);
+        JS_FreeValue(_context.ctx, exception_val);
+
+        return message;
     }
 
 public:
@@ -221,26 +242,33 @@ public:
     {
     }
 
-    virtual Value evaluateJavaScript(const std::shared_ptr<const Buffer>& buffer, const std::string& sourceURL) override
+    virtual jsi::Value evaluateJavaScript(const std::shared_ptr<const jsi::Buffer>& buffer, const std::string& sourceURL) override
     {
-        auto val = _context.eval(reinterpret_cast<const char*>(buffer->data()), sourceURL.c_str(), JS_EVAL_TYPE_GLOBAL);
-        auto result = createValue(std::move(val));
-        return result;
+        try
+        {
+            auto val = _context.eval(reinterpret_cast<const char*>(buffer->data()), sourceURL.c_str(), JS_EVAL_TYPE_GLOBAL);
+            auto result = createValue(std::move(val));
+            return result;
+        }
+        catch (qjs::exception&)
+        {
+            throw jsi::JSError(*this, getExceptionDetails());
+        }
     }
 
-    virtual std::shared_ptr<const PreparedJavaScript> prepareJavaScript(const std::shared_ptr<const Buffer>& buffer, std::string sourceURL) override
+    virtual std::shared_ptr<const jsi::PreparedJavaScript> prepareJavaScript(const std::shared_ptr<const jsi::Buffer>& buffer, std::string sourceURL) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Value evaluatePreparedJavaScript(const std::shared_ptr<const PreparedJavaScript>& js) override
+    virtual jsi::Value evaluatePreparedJavaScript(const std::shared_ptr<const jsi::PreparedJavaScript>& js) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Object global() override
+    virtual jsi::Object global() override
     {
         return createObject(_context.global());
     }
@@ -275,22 +303,22 @@ public:
         return new QuickJSAtomPointerValue { *static_cast<const QuickJSAtomPointerValue*>(pv) };
     }
 
-    virtual PropNameID createPropNameIDFromAscii(const char* str, size_t length) override
+    virtual jsi::PropNameID createPropNameIDFromAscii(const char* str, size_t length) override
     {
         return createPropNameID(JS_NewAtomLen(_context.ctx, str, length));
     }
 
-    virtual PropNameID createPropNameIDFromUtf8(const uint8_t* utf8, size_t length) override
+    virtual jsi::PropNameID createPropNameIDFromUtf8(const uint8_t* utf8, size_t length) override
     {
         return createPropNameID(JS_NewAtomLen(_context.ctx, (const char*) utf8, length));
     }
 
-    virtual PropNameID createPropNameIDFromString(const String& str) override
+    virtual jsi::PropNameID createPropNameIDFromString(const jsi::String& str) override
     {
         return createPropNameID(JS_ValueToAtom(_context.ctx, AsJSValue(str)));
     }
 
-    virtual std::string utf8(const PropNameID& sym) override
+    virtual std::string utf8(const jsi::PropNameID& sym) override
     {
         const char* str = JS_AtomToCString(_context.ctx, AsJSAtom(sym));
         if (!str)
@@ -303,28 +331,28 @@ public:
         return result;
     }
 
-    virtual bool compare(const PropNameID& left, const PropNameID& right) override
+    virtual bool compare(const jsi::PropNameID& left, const jsi::PropNameID& right) override
     {
         return AsJSAtom(left) == AsJSAtom(right);
     }
 
-    virtual std::string symbolToString(const Symbol&) override
+    virtual std::string symbolToString(const jsi::Symbol&) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual String createStringFromAscii(const char* str, size_t length) override
+    virtual jsi::String createStringFromAscii(const char* str, size_t length) override
     {
         return createString(_context.newValue(std::string_view { str, length }));
     }
 
-    virtual String createStringFromUtf8(const uint8_t* utf8, size_t length) override
+    virtual jsi::String createStringFromUtf8(const uint8_t* utf8, size_t length) override
     {
         return createString(_context.newValue(std::string_view { (const char*) utf8, length }));
     }
 
-    virtual std::string utf8(const String& str) override
+    virtual std::string utf8(const jsi::String& str) override
     {
         const QuickJSPointerValue* qjsStringValue =
             static_cast<const QuickJSPointerValue*>(getPointerValue(str));
@@ -332,28 +360,28 @@ public:
         return qjsStringValue->_val.as<std::string>();
     }
 
-    virtual Object createObject() override
+    virtual jsi::Object createObject() override
     {
         return createObject(_context.newObject());
     }
 
     struct HostObjectProxyBase
     {
-        HostObjectProxyBase(QuickJSRuntime& runtime, std::shared_ptr<HostObject>&& hostObject) noexcept
+        HostObjectProxyBase(QuickJSRuntime& runtime, std::shared_ptr<jsi::HostObject>&& hostObject) noexcept
             : m_runtime { runtime }
             , m_hostObject { std::move(hostObject) }
         {
         }
 
         QuickJSRuntime& m_runtime;
-        std::shared_ptr<HostObject>&& m_hostObject;
+        std::shared_ptr<jsi::HostObject>&& m_hostObject;
     };
 
-    virtual Object createObject(std::shared_ptr<HostObject> hostObject) override
+    virtual jsi::Object createObject(std::shared_ptr<jsi::HostObject> hostObject) override
     {
         struct HostObjectProxy : HostObjectProxyBase
         {
-            HostObjectProxy(QuickJSRuntime& runtime, std::shared_ptr<HostObject>&& hostObject) noexcept
+            HostObjectProxy(QuickJSRuntime& runtime, std::shared_ptr<jsi::HostObject>&& hostObject) noexcept
                 : HostObjectProxyBase { runtime, std::move(hostObject) }
             {
             }
@@ -422,24 +450,24 @@ public:
         return createObject(_context.newValue(std::move(obj)));
     }
 
-    virtual std::shared_ptr<HostObject> getHostObject(const Object&) override
+    virtual std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object&) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual HostFunctionType& getHostFunction(const Function&) override
+    virtual jsi::HostFunctionType& getHostFunction(const jsi::Function&) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Value getProperty(const Object& obj, const PropNameID& name) override
+    virtual jsi::Value getProperty(const jsi::Object& obj, const jsi::PropNameID& name) override
     {
         return createValue(JS_GetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name)));
     }
 
-    virtual Value getProperty(const Object& obj, const String& name) override
+    virtual jsi::Value getProperty(const jsi::Object& obj, const jsi::String& name) override
     {
         const QuickJSPointerValue* qjsObjectValue =
             static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
@@ -449,23 +477,23 @@ public:
         return createValue(qjsObjectValue->_val[propName.c_str()]);
     }
 
-    virtual bool hasProperty(const Object& obj, const PropNameID& name) override
+    virtual bool hasProperty(const jsi::Object& obj, const jsi::PropNameID& name) override
     {
         return JS_HasProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name));
     }
 
-    virtual bool hasProperty(const Object&, const String& name) override
+    virtual bool hasProperty(const jsi::Object&, const jsi::String& name) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual void setPropertyValue(Object& obj, const PropNameID& name, const Value& value) override
+    virtual void setPropertyValue(jsi::Object& obj, const jsi::PropNameID& name, const jsi::Value& value) override
     {
         JS_SetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name), fromJSIValue(value).v);
     }
 
-    virtual void setPropertyValue(Object& obj, const String& name, const Value& value) override
+    virtual void setPropertyValue(jsi::Object& obj, const jsi::String& name, const jsi::Value& value) override
     {
         QuickJSPointerValue* qjsObjectValue =
             static_cast<QuickJSPointerValue*>(const_cast<PointerValue*>(getPointerValue(obj)));
@@ -475,7 +503,7 @@ public:
         qjsObjectValue->_val[propName.c_str()] = fromJSIValue(value);
     }
 
-    virtual bool isArray(const Object& obj) const override
+    virtual bool isArray(const jsi::Object& obj) const override
     {
         const QuickJSPointerValue* qjsObjectValue =
             static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
@@ -483,13 +511,13 @@ public:
         return qjsObjectValue->_val.isArray();
     }
 
-    virtual bool isArrayBuffer(const Object&) const override
+    virtual bool isArrayBuffer(const jsi::Object&) const override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual bool isFunction(const Object& obj) const override
+    virtual bool isFunction(const jsi::Object& obj) const override
     {
         const QuickJSPointerValue* qjsObjectValue =
             static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
@@ -497,42 +525,42 @@ public:
         return qjsObjectValue->_val.isFunction();
     }
 
-    virtual bool isHostObject(const Object&) const override
+    virtual bool isHostObject(const jsi::Object&) const override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual bool isHostFunction(const Function&) const override
+    virtual bool isHostFunction(const jsi::Function&) const override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Array getPropertyNames(const Object&) override
+    virtual jsi::Array getPropertyNames(const jsi::Object&) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual WeakObject createWeakObject(const Object&) override
+    virtual jsi::WeakObject createWeakObject(const jsi::Object&) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Value lockWeakObject(const WeakObject&) override
+    virtual jsi::Value lockWeakObject(const jsi::WeakObject&) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Array createArray(size_t length) override
+    virtual jsi::Array createArray(size_t length) override
     {
         return createObject(qjs::Value { _context.ctx, JS_NewArray(_context.ctx) }).getArray(*this);
     }
 
-    virtual size_t size(const Array& arr) override
+    virtual size_t size(const jsi::Array& arr) override
     {
         const QuickJSPointerValue* qjsObjectValue =
             static_cast<const QuickJSPointerValue*>(getPointerValue(arr));
@@ -540,37 +568,37 @@ public:
         return static_cast<int32_t>(qjsObjectValue->_val["length"]);
     }
 
-    virtual size_t size(const ArrayBuffer&) override
+    virtual size_t size(const jsi::ArrayBuffer&) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual uint8_t* data(const ArrayBuffer&) override
+    virtual uint8_t* data(const jsi::ArrayBuffer&) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Value getValueAtIndex(const Array&, size_t i) override
+    virtual jsi::Value getValueAtIndex(const jsi::Array&, size_t i) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual void setValueAtIndexImpl(Array&, size_t i, const Value& value) override
+    virtual void setValueAtIndexImpl(jsi::Array&, size_t i, const jsi::Value& value) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Function createFunctionFromHostFunction(const PropNameID& name, unsigned int paramCount, HostFunctionType func) override
+    virtual jsi::Function createFunctionFromHostFunction(const jsi::PropNameID& name, unsigned int paramCount, jsi::HostFunctionType func) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual Value call(const Function& func, const Value& jsThis, const Value* args, size_t count) override
+    virtual jsi::Value call(const jsi::Function& func, const jsi::Value& jsThis, const jsi::Value* args, size_t count) override
     {
         JSValue jsArgs[32] {};
         if (count > 32) std::abort(); // We do not support more than 32 args
@@ -582,38 +610,38 @@ public:
         return createValue(JS_Call(_context.ctx, AsJSValue(func), AsJSValue(jsThis), count, jsArgs));
     }
 
-    virtual Value callAsConstructor(const Function&, const Value* args, size_t count) override
+    virtual jsi::Value callAsConstructor(const jsi::Function&, const jsi::Value* args, size_t count) override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual bool strictEquals(const Symbol& a, const Symbol& b) const override
+    virtual bool strictEquals(const jsi::Symbol& a, const jsi::Symbol& b) const override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual bool strictEquals(const String& a, const String& b) const override
+    virtual bool strictEquals(const jsi::String& a, const jsi::String& b) const override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual bool strictEquals(const Object& a, const Object& b) const override
+    virtual bool strictEquals(const jsi::Object& a, const jsi::Object& b) const override
     {
         // TODO: NYI
         std::abort();
     }
 
-    virtual bool instanceOf(const Object& o, const Function& f) override
+    virtual bool instanceOf(const jsi::Object& o, const jsi::Function& f) override
     {
         // TODO: NYI
         std::abort();
     }
 };
 
-std::unique_ptr<Runtime> __cdecl makeQuickJSRuntime(QuickJSRuntimeArgs&& args)
+std::unique_ptr<jsi::Runtime> __cdecl makeQuickJSRuntime(QuickJSRuntimeArgs&& args)
 {
     return std::make_unique<QuickJSRuntime>(std::move(args));
 }
