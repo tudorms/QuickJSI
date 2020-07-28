@@ -117,19 +117,15 @@ private:
         JSAtom _atom;
     };
 
-    jsi::String createString(qjs::Value&& val)
+    template <typename T>
+    T createPointerValue(qjs::Value&& val)
     {
-        return make<jsi::String>(new QuickJSPointerValue(std::move(val)));
+        return make<T>(new QuickJSPointerValue(std::move(val)));
     }
 
     jsi::PropNameID createPropNameID(JSAtom atom)
     {
         return make<jsi::PropNameID>(new QuickJSAtomPointerValue { _context.ctx, atom });
-    }
-
-    jsi::Object createObject(qjs::Value&& val)
-    {
-        return make<jsi::Object>(new QuickJSPointerValue(std::move(val)));
     }
 
     jsi::String throwException(qjs::Value&& val)
@@ -198,10 +194,13 @@ private:
                 return jsi::Value(nullptr);
 
             case JS_TAG_STRING:
-                return createString(std::move(val));
+                return createPointerValue<jsi::String>(std::move(val));
 
             case JS_TAG_OBJECT:
-                return createObject(std::move(val));
+                return createPointerValue<jsi::Object>(std::move(val));
+
+            case JS_TAG_SYMBOL:
+                return createPointerValue<jsi::Symbol>(std::move(val));
 
             case JS_TAG_EXCEPTION:
                 return throwException(std::move(val));
@@ -210,7 +209,6 @@ private:
             case JS_TAG_BIG_DECIMAL:
             case JS_TAG_BIG_INT:
             case JS_TAG_BIG_FLOAT:
-            case JS_TAG_SYMBOL:
             case JS_TAG_CATCH_OFFSET:
             default:
                 return jsi::Value();
@@ -327,7 +325,7 @@ public:
 
     virtual jsi::Object global() override
     {
-        return createObject(_context.global());
+        return createPointerValue<jsi::Object>(_context.global());
     }
 
     virtual std::string description() override
@@ -393,20 +391,31 @@ public:
         return AsJSAtom(left) == AsJSAtom(right);
     }
 
-    virtual std::string symbolToString(const jsi::Symbol&) override
+    virtual std::string symbolToString(const jsi::Symbol& sym) override
     {
-        // TODO: NYI
-        std::abort();
+        try
+        {
+            auto symVal = QuickJSPointerValue::GetValue(getPointerValue(sym));
+            auto toString = symVal["toString"].as<qjs::Value>();
+
+            auto result = qjs::Value { _context.ctx, JS_Call(_context.ctx, toString.v, symVal.v, 0, nullptr) };
+
+            return result.as<std::string>();
+        }
+        catch (qjs::exception&)
+        {
+            throw jsi::JSError(*this, getExceptionDetails());
+        }
     }
 
     virtual jsi::String createStringFromAscii(const char* str, size_t length) override
     {
-        return createString(_context.newValue(std::string_view { str, length }));
+        return createPointerValue<jsi::String>(_context.newValue(std::string_view { str, length }));
     }
 
     virtual jsi::String createStringFromUtf8(const uint8_t* utf8, size_t length) override
     {
-        return createString(_context.newValue(std::string_view { (const char*) utf8, length }));
+        return createPointerValue<jsi::String>(_context.newValue(std::string_view { (const char*) utf8, length }));
     }
 
     virtual std::string utf8(const jsi::String& str) override
@@ -416,7 +425,7 @@ public:
 
     virtual jsi::Object createObject() override
     {
-        return createObject(_context.newObject());
+        return createPointerValue<jsi::Object>(_context.newObject());
     }
 
     struct HostObjectProxyBase
@@ -501,7 +510,7 @@ public:
         //TODO: check error
         JSValue obj = JS_NewObjectClass(_context.ctx, g_hostObjectClassId);
         JS_SetOpaque(obj, new HostObjectProxy { *this, std::move(hostObject) });
-        return createObject(_context.newValue(std::move(obj)));
+        return createPointerValue<jsi::Object>(_context.newValue(std::move(obj)));
     }
 
     virtual std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object&) override
@@ -630,7 +639,7 @@ public:
 
         for (size_t i = 0; i < enumerablePropNamesSize; ++i)
         {
-            result.setValueAtIndex(*this, i, createString(std::move(enumerablePropNames[i])));
+            result.setValueAtIndex(*this, i, createPointerValue<jsi::String>(std::move(enumerablePropNames[i])));
         }
 
         return result;
@@ -650,7 +659,7 @@ public:
 
     virtual jsi::Array createArray(size_t length) override
     {
-        return createObject(qjs::Value { _context.ctx, JS_NewArray(_context.ctx) }).getArray(*this);
+        return createPointerValue<jsi::Object>(qjs::Value { _context.ctx, JS_NewArray(_context.ctx) }).getArray(*this);
     }
 
     virtual size_t size(const jsi::Array& arr) override
@@ -708,8 +717,8 @@ public:
 
     virtual bool strictEquals(const jsi::Symbol& a, const jsi::Symbol& b) const override
     {
-        // TODO: NYI
-        std::abort();
+        // TODO: check this (are symbols really unique)?
+        return QuickJSPointerValue::GetValue(getPointerValue(a)) == QuickJSPointerValue::GetValue(getPointerValue(b));
     }
 
     virtual bool strictEquals(const jsi::String& a, const jsi::String& b) const override
