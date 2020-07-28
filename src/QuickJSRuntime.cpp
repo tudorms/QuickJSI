@@ -266,9 +266,9 @@ private:
         }
     }
 
-    JSValueConst AsJSValueConst(const jsi::Object& obj) noexcept
+    JSValueConst AsJSValueConst(const jsi::Pointer& ptr) noexcept
     {
-        return QuickJSPointerValue::GetJSValue(getPointerValue(obj));
+        return QuickJSPointerValue::GetJSValue(getPointerValue(ptr));
     }
 
     std::string getExceptionDetails()
@@ -375,7 +375,7 @@ public:
 
     virtual jsi::PropNameID createPropNameIDFromString(const jsi::String& str) override
     {
-        return createPropNameID(JS_ValueToAtom(_context.ctx, AsJSValue(str)));
+        return createPropNameID(JS_ValueToAtom(_context.ctx, AsJSValueConst(str)));
     }
 
     virtual std::string utf8(const jsi::PropNameID& sym) override
@@ -539,13 +539,16 @@ public:
 
     virtual bool hasProperty(const jsi::Object& obj, const jsi::PropNameID& name) override
     {
-        return JS_HasProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name));
+        //TODO: handle exception
+        //TODO: Should we free the atom?
+        return JS_HasProperty(_context.ctx, AsJSValueConst(obj), AsJSAtom(name));
     }
 
-    virtual bool hasProperty(const jsi::Object&, const jsi::String& name) override
+    virtual bool hasProperty(const jsi::Object& obj, const jsi::String& name) override
     {
-        // TODO: NYI
-        std::abort();
+        //TODO: free atom
+        //TODO: handle exception
+        return JS_HasProperty(_context.ctx, AsJSValueConst(obj), JS_ValueToAtom(_context.ctx, AsJSValueConst(name)));
     }
 
     virtual void setPropertyValue(jsi::Object& obj, const jsi::PropNameID& name, const jsi::Value& value) override
@@ -715,7 +718,7 @@ public:
             jsArgs[i] = AsJSValueConst(*(args + i));
         }
 
-        return createValue(JS_Call(_context.ctx, AsJSValueConst(func), AsJSValueConst(jsThis), count, jsArgs.data()));
+        return createValue(JS_Call(_context.ctx, AsJSValueConst(func), AsJSValueConst(jsThis), static_cast<int>(count), jsArgs.data()));
     }
 
     virtual jsi::Value callAsConstructor(const jsi::Function&, const jsi::Value* args, size_t count) override
