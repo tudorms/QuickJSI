@@ -1,4 +1,5 @@
 #include <memory>
+#include <mutex>
 
 #include <quickjs-libc.h>
 #include <quickjspp.hpp>
@@ -8,6 +9,13 @@
 using namespace facebook::jsi;
 
 namespace quickjs {
+
+namespace {
+std::once_flag g_hostObjectClassOnceFlag;
+JSClassID g_hostObjectClassId;
+JSClassExoticMethods g_hostObjectExoticMethods;
+JSClassDef g_hostObjectClassDef;
+} // namespace
 
 class QuickJSRuntime : public facebook::jsi::Runtime
 {
@@ -132,7 +140,7 @@ private:
             case JS_TAG_EXCEPTION:
                 return throwException(std::move(val));
 
-            // TODO: rest of types
+                // TODO: rest of types
             case JS_TAG_BIG_DECIMAL:
             case JS_TAG_BIG_INT:
             case JS_TAG_BIG_FLOAT:
@@ -214,7 +222,7 @@ public:
 
     virtual PropNameID createPropNameIDFromUtf8(const uint8_t* utf8, size_t length) override
     {
-        return createPropNameID(_context.newValue(std::string_view { (const char*)utf8, length }));
+        return createPropNameID(_context.newValue(std::string_view { (const char*) utf8, length }));
     }
 
     virtual PropNameID createPropNameIDFromString(const String& str) override
@@ -268,10 +276,89 @@ public:
         return createObject(_context.newObject());
     }
 
-    virtual Object createObject(std::shared_ptr<HostObject> ho) override
+    struct HostObjectProxyBase
     {
-        // TODO: NYI
-        std::abort();
+        HostObjectProxyBase(QuickJSRuntime& runtime, std::shared_ptr<HostObject>&& hostObject) noexcept
+            : m_runtime { runtime }
+            , m_hostObject { std::move(hostObject) }
+        {
+        }
+
+        QuickJSRuntime& m_runtime;
+        std::shared_ptr<HostObject>&& m_hostObject;
+    };
+
+    virtual Object createObject(std::shared_ptr<HostObject> hostObject) override
+    {
+        struct HostObjectProxy : HostObjectProxyBase
+        {
+            HostObjectProxy(QuickJSRuntime& runtime, std::shared_ptr<HostObject>&& hostObject) noexcept
+                : HostObjectProxyBase { runtime, std::move(hostObject) }
+            {
+            }
+
+            static int GetOwnProperty(JSContext* ctx, JSPropertyDescriptor* desc, JSValueConst obj, JSAtom prop)
+            {
+                // TODO: NYI
+                std::abort();
+            }
+
+            static int GetOwnPropertyNames(JSContext* ctx, JSPropertyEnum** ptab, uint32_t* plen, JSValueConst obj)
+            {
+                // TODO: NYI
+                std::abort();
+            }
+
+            static int DeleteProperty(JSContext* ctx, JSValueConst obj, JSAtom prop)
+            {
+                // TODO: NYI
+                std::abort();
+            }
+
+            static int DefineOwnProperty(JSContext* ctx, JSValueConst this_obj, JSAtom prop,
+                JSValueConst val, JSValueConst getter, JSValueConst setter, int flags)
+            {
+                // TODO: NYI
+                std::abort();
+            }
+
+            static void Finalize(JSRuntime* rt, JSValue val)
+            {
+                // Take ownership of proxy object to delete it
+                std::unique_ptr<HostObjectProxy> proxy { GetProxy(val) };
+            }
+
+            static HostObjectProxy* GetProxy(JSValue val)
+            {
+                return static_cast<HostObjectProxy*>(JS_GetOpaque(val, g_hostObjectClassId));
+            }
+        };
+
+        // Register custom ClassDef for HostObject only one.
+        // We use it to associate the HostObject with JSValue with help of opaque value
+        // and to implement the HostObject proxy.
+        std::call_once(g_hostObjectClassOnceFlag, [this]()
+        {
+            g_hostObjectExoticMethods = {};
+            g_hostObjectExoticMethods.get_own_property = HostObjectProxy::GetOwnProperty;
+            g_hostObjectExoticMethods.get_own_property_names = HostObjectProxy::GetOwnPropertyNames;
+            g_hostObjectExoticMethods.delete_property = HostObjectProxy::DeleteProperty;
+            g_hostObjectExoticMethods.define_own_property = HostObjectProxy::DefineOwnProperty;
+
+            g_hostObjectClassDef = {};
+            g_hostObjectClassDef.class_name = "HostObject";
+            g_hostObjectClassDef.finalizer = HostObjectProxy::Finalize;
+            g_hostObjectClassDef.exotic = &g_hostObjectExoticMethods;
+
+            g_hostObjectClassId = JS_NewClassID(nullptr);
+            //TODO: check error
+            JS_NewClass(_runtime.rt, g_hostObjectClassId, &g_hostObjectClassDef);
+        });
+
+        //TODO: check error
+        JSValue obj = JS_NewObjectClass(_context.ctx, g_hostObjectClassId);
+        JS_SetOpaque(obj, new HostObjectProxy { *this, std::move(hostObject) });
+        return createObject(_context.newValue(std::move(obj)));
     }
 
     virtual std::shared_ptr<HostObject> getHostObject(const Object&) override
