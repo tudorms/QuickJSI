@@ -8,7 +8,12 @@ TEST(Basic, SimpleTest)
     quickjs::QuickJSRuntimeArgs args;
     auto runtime = quickjs::makeQuickJSRuntime(std::move(args));
 
-    auto val = runtime->evaluateJavaScript(std::make_unique<facebook::jsi::StringBuffer>("let x = 2; `result is ${x + x}`;"), "");
+    runtime->evaluateJavaScript(std::make_unique<facebook::jsi::StringBuffer>(
+        "let x = 2;" "\n"
+        "var result = `result is ${x + x}`;" "\n"
+        ), "<test_code>");
 
-    EXPECT_EQ(val.getString(*runtime).utf8(*runtime), "result is 4");
+    auto result = runtime->global().getProperty(*runtime, "result");
+
+    EXPECT_EQ(result.getString(*runtime).utf8(*runtime), "result is 4");
 }
