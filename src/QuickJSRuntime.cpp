@@ -159,12 +159,12 @@ private:
         else if (value.isString())
         {
             // TODO: Validate me!
-            return QuickJSPointerValue::GetValue(getPointerValue(value.asString(*this)));
+            return QuickJSPointerValue::GetValue(getPointerValue(value.getString(*this)));
         }
         else if (value.isObject())
         {
             // TODO: Validate me!
-            return QuickJSPointerValue::GetValue(getPointerValue(value.asString(*this)));
+            return QuickJSPointerValue::GetValue(getPointerValue(value.getObject(*this)));
         }
         else
         {
@@ -251,7 +251,7 @@ private:
         {
             return JS_NewFloat64(_context.ctx, value.getNumber());
         }
-        else if (value.isString())
+        else if (value.isSymbol())
         {
             return QuickJSPointerValue::GetJSValue(getPointerValue(value));
         }
@@ -289,6 +289,13 @@ private:
         return strstream.str();
     }
 
+    [[noreturn]]
+    void ThrowJSError() const
+    {
+        auto self = const_cast<QuickJSRuntime*>(this);
+        throw jsi::JSError(*self, self->getExceptionDetails());
+    }
+
 public:
     QuickJSRuntime(QuickJSRuntimeArgs&& args) :
         _runtime(), _context(_runtime)
@@ -299,35 +306,44 @@ public:
     {
     }
 
-    virtual jsi::Value evaluateJavaScript(const std::shared_ptr<const jsi::Buffer>& buffer, const std::string& sourceURL) override
+    virtual jsi::Value evaluateJavaScript(const std::shared_ptr<const jsi::Buffer>& buffer, const std::string& sourceURL) override try
     {
-        try
-        {
-            auto val = _context.eval(reinterpret_cast<const char*>(buffer->data()), sourceURL.c_str(), JS_EVAL_TYPE_GLOBAL);
-            auto result = createValue(std::move(val));
-            return result;
-        }
-        catch (qjs::exception&)
-        {
-            throw jsi::JSError(*this, getExceptionDetails());
-        }
+        auto val = _context.eval(reinterpret_cast<const char*>(buffer->data()), sourceURL.c_str(), JS_EVAL_TYPE_GLOBAL);
+        auto result = createValue(std::move(val));
+        return result;
+    }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
     }
 
-    virtual std::shared_ptr<const jsi::PreparedJavaScript> prepareJavaScript(const std::shared_ptr<const jsi::Buffer>& buffer, std::string sourceURL) override
+    virtual std::shared_ptr<const jsi::PreparedJavaScript> prepareJavaScript(const std::shared_ptr<const jsi::Buffer>& buffer, std::string sourceURL) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Value evaluatePreparedJavaScript(const std::shared_ptr<const jsi::PreparedJavaScript>& js) override
+    virtual jsi::Value evaluatePreparedJavaScript(const std::shared_ptr<const jsi::PreparedJavaScript>& js) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Object global() override
+    virtual jsi::Object global() override try
     {
         return createObject(_context.global());
+    }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
     }
 
     virtual std::string description() override
@@ -340,42 +356,70 @@ public:
         return false;
     }
 
-    virtual PointerValue* cloneSymbol(const Runtime::PointerValue* pv) override
+    virtual PointerValue* cloneSymbol(const Runtime::PointerValue* pv) override try
     {
         return new QuickJSPointerValue(QuickJSPointerValue::GetValue(pv));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual PointerValue* cloneString(const Runtime::PointerValue* pv) override
+    virtual PointerValue* cloneString(const Runtime::PointerValue* pv) override try
     {
         return new QuickJSPointerValue(QuickJSPointerValue::GetValue(pv));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual PointerValue* cloneObject(const Runtime::PointerValue* pv) override
+    virtual PointerValue* cloneObject(const Runtime::PointerValue* pv) override try
     {
         return new QuickJSPointerValue(QuickJSPointerValue::GetValue(pv));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual PointerValue* clonePropNameID(const Runtime::PointerValue* pv) override
+    virtual PointerValue* clonePropNameID(const Runtime::PointerValue* pv) override try
     {
         return new QuickJSAtomPointerValue { *static_cast<const QuickJSAtomPointerValue*>(pv) };
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::PropNameID createPropNameIDFromAscii(const char* str, size_t length) override
+    virtual jsi::PropNameID createPropNameIDFromAscii(const char* str, size_t length) override try
     {
         return createPropNameID(JS_NewAtomLen(_context.ctx, str, length));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::PropNameID createPropNameIDFromUtf8(const uint8_t* utf8, size_t length) override
+    virtual jsi::PropNameID createPropNameIDFromUtf8(const uint8_t* utf8, size_t length) override try
     {
         return createPropNameID(JS_NewAtomLen(_context.ctx, (const char*) utf8, length));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::PropNameID createPropNameIDFromString(const jsi::String& str) override
+    virtual jsi::PropNameID createPropNameIDFromString(const jsi::String& str) override try
     {
         return createPropNameID(JS_ValueToAtom(_context.ctx, AsJSValueConst(str)));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual std::string utf8(const jsi::PropNameID& sym) override
+    virtual std::string utf8(const jsi::PropNameID& sym) override try
     {
         const char* str = JS_AtomToCString(_context.ctx, AsJSAtom(sym));
         if (!str)
@@ -387,36 +431,64 @@ public:
         JS_FreeCString(_context.ctx, str);
         return result;
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool compare(const jsi::PropNameID& left, const jsi::PropNameID& right) override
+    virtual bool compare(const jsi::PropNameID& left, const jsi::PropNameID& right) override try
     {
         return AsJSAtom(left) == AsJSAtom(right);
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual std::string symbolToString(const jsi::Symbol&) override
+    virtual std::string symbolToString(const jsi::Symbol&) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::String createStringFromAscii(const char* str, size_t length) override
+    virtual jsi::String createStringFromAscii(const char* str, size_t length) override try
     {
         return createString(_context.newValue(std::string_view { str, length }));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::String createStringFromUtf8(const uint8_t* utf8, size_t length) override
+    virtual jsi::String createStringFromUtf8(const uint8_t* utf8, size_t length) override try
     {
         return createString(_context.newValue(std::string_view { (const char*) utf8, length }));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual std::string utf8(const jsi::String& str) override
+    virtual std::string utf8(const jsi::String& str) override try
     {
         return QuickJSPointerValue::GetValue(getPointerValue(str)).as<std::string>();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Object createObject() override
+    virtual jsi::Object createObject() override try
     {
         return createObject(_context.newObject());
+    }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
     }
 
     struct HostObjectProxyBase
@@ -431,7 +503,7 @@ public:
         std::shared_ptr<jsi::HostObject>&& m_hostObject;
     };
 
-    virtual jsi::Object createObject(std::shared_ptr<jsi::HostObject> hostObject) override
+    virtual jsi::Object createObject(std::shared_ptr<jsi::HostObject> hostObject) override try
     {
         struct HostObjectProxy : HostObjectProxyBase
         {
@@ -503,86 +575,142 @@ public:
         JS_SetOpaque(obj, new HostObjectProxy { *this, std::move(hostObject) });
         return createObject(_context.newValue(std::move(obj)));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object&) override
+    virtual std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object&) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::HostFunctionType& getHostFunction(const jsi::Function&) override
+    virtual jsi::HostFunctionType& getHostFunction(const jsi::Function&) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Value getProperty(const jsi::Object& obj, const jsi::PropNameID& name) override
+    virtual jsi::Value getProperty(const jsi::Object& obj, const jsi::PropNameID& name) override try
     {
         return createValue(JS_GetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name)));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Value getProperty(const jsi::Object& obj, const jsi::String& name) override
+    virtual jsi::Value getProperty(const jsi::Object& obj, const jsi::String& name) override try
     {
         auto propName = utf8(name);
 
         return createValue(QuickJSPointerValue::GetValue(getPointerValue(obj))[propName.c_str()]);
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool hasProperty(const jsi::Object& obj, const jsi::PropNameID& name) override
+    virtual bool hasProperty(const jsi::Object& obj, const jsi::PropNameID& name) override try
     {
         //TODO: handle exception
         //TODO: Should we free the atom?
         return JS_HasProperty(_context.ctx, AsJSValueConst(obj), AsJSAtom(name));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool hasProperty(const jsi::Object& obj, const jsi::String& name) override
+    virtual bool hasProperty(const jsi::Object& obj, const jsi::String& name) override try
     {
         //TODO: free atom
         //TODO: handle exception
         return JS_HasProperty(_context.ctx, AsJSValueConst(obj), JS_ValueToAtom(_context.ctx, AsJSValueConst(name)));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual void setPropertyValue(jsi::Object& obj, const jsi::PropNameID& name, const jsi::Value& value) override
+    virtual void setPropertyValue(jsi::Object& obj, const jsi::PropNameID& name, const jsi::Value& value) override try
     {
         JS_SetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name), fromJSIValue(value).v);
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual void setPropertyValue(jsi::Object& obj, const jsi::String& name, const jsi::Value& value) override
+    virtual void setPropertyValue(jsi::Object& obj, const jsi::String& name, const jsi::Value& value) override try
     {
         auto propName = utf8(name);
 
         QuickJSPointerValue::GetValue(getPointerValue(obj))[propName.c_str()] = fromJSIValue(value);
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool isArray(const jsi::Object& obj) const override
+    virtual bool isArray(const jsi::Object& obj) const override try
     {
         return QuickJSPointerValue::GetValue(getPointerValue(obj)).isArray();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool isArrayBuffer(const jsi::Object&) const override
+    virtual bool isArrayBuffer(const jsi::Object&) const override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool isFunction(const jsi::Object& obj) const override
+    virtual bool isFunction(const jsi::Object& obj) const override try
     {
         return QuickJSPointerValue::GetValue(getPointerValue(obj)).isFunction();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool isHostObject(const jsi::Object&) const override
+    virtual bool isHostObject(const jsi::Object&) const override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool isHostFunction(const jsi::Function&) const override
+    virtual bool isHostFunction(const jsi::Function&) const override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Array getPropertyNames(const jsi::Object& obj) override
+    virtual jsi::Array getPropertyNames(const jsi::Object& obj) override try
     {
         // Handle to the null JS value.
         qjs::Value jsNull = _context.newValue(JS_NULL);
@@ -635,60 +763,100 @@ public:
 
         return result;
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::WeakObject createWeakObject(const jsi::Object&) override
+    virtual jsi::WeakObject createWeakObject(const jsi::Object&) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Value lockWeakObject(const jsi::WeakObject&) override
+    virtual jsi::Value lockWeakObject(const jsi::WeakObject&) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Array createArray(size_t length) override
+    virtual jsi::Array createArray(size_t length) override try
     {
         return createObject(_context.newValue(JS_NewArray(_context.ctx))).getArray(*this);
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual size_t size(const jsi::Array& arr) override
+    virtual size_t size(const jsi::Array& arr) override try
     {
         return static_cast<int32_t>(QuickJSPointerValue::GetValue(getPointerValue(arr))["length"]);
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual size_t size(const jsi::ArrayBuffer&) override
+    virtual size_t size(const jsi::ArrayBuffer&) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual uint8_t* data(const jsi::ArrayBuffer&) override
+    virtual uint8_t* data(const jsi::ArrayBuffer&) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Value getValueAtIndex(const jsi::Array& arr, size_t i) override
+    virtual jsi::Value getValueAtIndex(const jsi::Array& arr, size_t i) override try
     {
         return createValue(JS_GetPropertyUint32(_context.ctx, AsJSValueConst(arr), static_cast<uint32_t>(i)));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual void setValueAtIndexImpl(jsi::Array& arr, size_t i, const jsi::Value& value) override
+    virtual void setValueAtIndexImpl(jsi::Array& arr, size_t i, const jsi::Value& value) override try
     {
         auto jsValue = AsJSValueConst(value);
         JS_DupValue(_context.ctx, jsValue);
         JS_SetPropertyUint32(_context.ctx, AsJSValueConst(arr), static_cast<uint32_t>(i), jsValue);
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Function createFunctionFromHostFunction(const jsi::PropNameID& name, unsigned int paramCount, jsi::HostFunctionType func) override
+    virtual jsi::Function createFunctionFromHostFunction(const jsi::PropNameID& name, unsigned int paramCount, jsi::HostFunctionType func) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Value call(const jsi::Function& func, const jsi::Value& jsThis, const jsi::Value* args, size_t count) override
+    virtual jsi::Value call(const jsi::Function& func, const jsi::Value& jsThis, const jsi::Value* args, size_t count) override try
     {
         QJS_VERIFY_ELSE_CRASH_MSG(count <= MaxCallArgCount, "Argument count must not exceed the supported max arg count.");
         std::array<JSValue, MaxCallArgCount> jsArgs;
@@ -699,33 +867,57 @@ public:
 
         return createValue(JS_Call(_context.ctx, AsJSValueConst(func), AsJSValueConst(jsThis), static_cast<int>(count), jsArgs.data()));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual jsi::Value callAsConstructor(const jsi::Function&, const jsi::Value* args, size_t count) override
+    virtual jsi::Value callAsConstructor(const jsi::Function&, const jsi::Value* args, size_t count) override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool strictEquals(const jsi::Symbol& a, const jsi::Symbol& b) const override
+    virtual bool strictEquals(const jsi::Symbol& a, const jsi::Symbol& b) const override try
     {
         // TODO: NYI
         std::abort();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool strictEquals(const jsi::String& a, const jsi::String& b) const override
+    virtual bool strictEquals(const jsi::String& a, const jsi::String& b) const override try
     {
         return QuickJSPointerValue::GetValue(getPointerValue(a)).as<std::string>() == QuickJSPointerValue::GetValue(getPointerValue(b)).as<std::string>();
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool strictEquals(const jsi::Object& a, const jsi::Object& b) const override
+    virtual bool strictEquals(const jsi::Object& a, const jsi::Object& b) const override try
     {
         return QuickJSPointerValue::GetValue(getPointerValue(a)) == QuickJSPointerValue::GetValue(getPointerValue(b));
     }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
+    }
 
-    virtual bool instanceOf(const jsi::Object& o, const jsi::Function& f) override
+    virtual bool instanceOf(const jsi::Object& o, const jsi::Function& f) override try
     {
         // TODO: NYI
         std::abort();
+    }
+    catch (qjs::exception&)
+    {
+        ThrowJSError();
     }
 };
 
