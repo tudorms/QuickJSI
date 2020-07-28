@@ -27,6 +27,9 @@
     <ClCompile Include="QuickJSITest.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\external\jsi\test\testlib.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <CopyFileToFolders Include="..\external\quickjs\qjslib.dll" />
