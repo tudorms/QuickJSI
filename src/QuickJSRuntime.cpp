@@ -40,6 +40,11 @@ private:
             delete this;
         }
 
+        static JSValue GetJSValue(const PointerValue* pv) noexcept
+        {
+            return static_cast<const QuickJSPointerValue*>(pv)->_val.v;
+        }
+
     private:
         qjs::Value _val;
 
@@ -89,16 +94,6 @@ private:
     String createString(qjs::Value&& val)
     {
         return make<String>(new QuickJSPointerValue(std::move(val)));
-    }
-
-    PropNameID createPropNameID(qjs::Value&& val)
-    {
-        return make<PropNameID>(new QuickJSPointerValue(std::move(val)));
-    }
-
-    PropNameID createPropNameID(const qjs::Value& val)
-    {
-        return make<PropNameID>(new QuickJSPointerValue(val));
     }
 
     PropNameID createPropNameID(JSAtom atom)
@@ -155,6 +150,11 @@ private:
         }
     }
 
+    Value createValue(JSValue&& jsValue)
+    {
+        return createValue(_context.newValue(std::move(jsValue)));
+    }
+
     Value createValue(qjs::Value&& val)
     {
         switch (val.getTag())
@@ -198,6 +198,12 @@ private:
     static JSAtom AsJSAtom(const PropNameID& propertyId) noexcept
     {
         return QuickJSAtomPointerValue::GetJSAtom(getPointerValue(propertyId));
+    }
+
+    template <typename T>
+    static JSValue AsJSValue(const T& obj) noexcept
+    {
+        return QuickJSPointerValue::GetJSValue(getPointerValue(obj));
     }
 
 public:
@@ -276,10 +282,7 @@ public:
 
     virtual PropNameID createPropNameIDFromString(const String& str) override
     {
-        const QuickJSPointerValue* qjsObjectValue =
-            static_cast<const QuickJSPointerValue*>(getPointerValue(str));
-
-        return createPropNameID(JS_ValueToAtom(_context.ctx, qjsObjectValue->_val.v));
+        return createPropNameID(JS_ValueToAtom(_context.ctx, AsJSValue(str)));
     }
 
     virtual std::string utf8(const PropNameID& sym) override
@@ -428,12 +431,7 @@ public:
 
     virtual Value getProperty(const Object& obj, const PropNameID& name) override
     {
-        const QuickJSPointerValue* qjsObjectValue =
-            static_cast<const QuickJSPointerValue*>(getPointerValue(obj));
-
-        auto propName = utf8(name);
-
-        return createValue(qjsObjectValue->_val[propName.c_str()]);
+        return createValue(JS_GetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name)));
     }
 
     virtual Value getProperty(const Object& obj, const String& name) override
@@ -446,10 +444,9 @@ public:
         return createValue(qjsObjectValue->_val[propName.c_str()]);
     }
 
-    virtual bool hasProperty(const Object&, const PropNameID& name) override
+    virtual bool hasProperty(const Object& obj, const PropNameID& name) override
     {
-        // TODO: NYI
-        std::abort();
+        return JS_HasProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name));
     }
 
     virtual bool hasProperty(const Object&, const String& name) override
@@ -460,12 +457,7 @@ public:
 
     virtual void setPropertyValue(Object& obj, const PropNameID& name, const Value& value) override
     {
-        QuickJSPointerValue* qjsObjectValue =
-            static_cast<QuickJSPointerValue*>(const_cast<PointerValue*>(getPointerValue(obj)));
-
-        auto propName = utf8(name);
-
-        qjsObjectValue->_val[propName.c_str()] = fromJSIValue(value);
+        JS_SetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name), fromJSIValue(value).v);
     }
 
     virtual void setPropertyValue(Object& obj, const String& name, const Value& value) override
