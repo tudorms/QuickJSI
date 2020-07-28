@@ -206,6 +206,11 @@ private:
         return QuickJSPointerValue::GetJSValue(getPointerValue(obj));
     }
 
+    JSValue AsJSValue(const Value& value) noexcept
+    {
+        return fromJSIValue(value).v;
+    }
+
 public:
     QuickJSRuntime(QuickJSRuntimeArgs&& args) :
         _runtime(), _context(_runtime)
@@ -565,10 +570,16 @@ public:
         std::abort();
     }
 
-    virtual Value call(const Function&, const Value& jsThis, const Value* args, size_t count) override
+    virtual Value call(const Function& func, const Value& jsThis, const Value* args, size_t count) override
     {
-        // TODO: NYI
-        std::abort();
+        JSValue jsArgs[32] {};
+        if (count > 32) std::abort(); // We do not support more than 32 args
+        for (size_t i = 0; i < count; ++i)
+        {
+            jsArgs[i] = AsJSValue(*(args + i));
+        }
+
+        return createValue(JS_Call(_context.ctx, AsJSValue(func), AsJSValue(jsThis), count, jsArgs));
     }
 
     virtual Value callAsConstructor(const Function&, const Value* args, size_t count) override
