@@ -1221,7 +1221,7 @@ struct js_traits<Value>
 
     static JSValue wrap(JSContext * ctx, Value v) noexcept
     {
-        assert(ctx == v.ctx);
+        assert(JS_IsUndefined(v.v) || (ctx == v.ctx));
         return v.release();
     }
 };
