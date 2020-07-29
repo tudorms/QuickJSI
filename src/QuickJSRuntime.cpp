@@ -1,6 +1,7 @@
 #include <iostream>
 #include <array>
 #include <memory>
+#include <string>
 #include <mutex>
 #include <sstream>
 #include <unordered_set>
@@ -10,6 +11,7 @@
 #include "QuickJSRuntime.h"
 
 using namespace facebook;
+using namespace std::string_literals;
 
 #define QJS_VERIFY_ELSE_CRASH(condition) \
   do {                                   \
@@ -1052,12 +1054,12 @@ public:
             }
             catch (const std::exception& ex)
             {
-                QuickJSRuntime::SetException(ctx, ex.what(), nullptr);
+                QuickJSRuntime::SetException(ctx, ("Exception in HostFunction: "s + ex.what()).c_str(), nullptr);
                 return JS_EXCEPTION;
             }
             catch (...)
             {
-                QuickJSRuntime::SetException(ctx, "Unexpected error", nullptr);
+                QuickJSRuntime::SetException(ctx, "Exception in HostFunction: <unknown>", nullptr);
                 return JS_EXCEPTION;
             }
 
