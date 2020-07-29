@@ -928,10 +928,26 @@ public:
         ThrowJSError();
     }
 
-    virtual jsi::Value callAsConstructor(const jsi::Function&, const jsi::Value* args, size_t count) override try
+    virtual jsi::Value callAsConstructor(const jsi::Function& func, const jsi::Value* args, size_t count) override try
     {
-        // TODO: NYI
-        std::abort();
+        QJS_VERIFY_ELSE_CRASH_MSG(count <= MaxCallArgCount, "Argument count must not exceed the supported max arg count.");
+        std::array<JSValue, MaxCallArgCount> jsArgs;
+        // If we don't want to manually call dupe and free here, we could wrap them in qjs::Values instead
+        for (size_t i = 0; i < count; ++i)
+        {
+            jsArgs[i] = JS_DupValue(_context.ctx, AsJSValueConst(*(args + i)));
+        }
+
+        auto funcVal = AsValue(func);
+
+        auto result = qjs::Value { _context.ctx, JS_CallConstructor(_context.ctx, funcVal.v, static_cast<int>(count), jsArgs.data()) };
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            JS_FreeValue(_context.ctx, jsArgs[i]);
+        }
+
+        return createValue(std::move(result));
     }
     catch (qjs::exception&)
     {
