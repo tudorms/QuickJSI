@@ -904,7 +904,7 @@ TEST_P(JSITest, ExceptionStackTraceTest) {
   }
   EXPECT_NE(stack.find("world"), std::string::npos);
 }
-
+#if 0
 TEST_P(JSITest, PreparedJavaScriptSourceTest) {
   rt.evaluateJavaScript(std::make_unique<StringBuffer>("var q = 0;"), "");
   auto prep = rt.prepareJavaScript(std::make_unique<StringBuffer>("q++;"), "");
@@ -930,7 +930,7 @@ TEST_P(JSITest, PreparedJavaScriptURLInBacktrace) {
         << "Backtrace should contain source URL";
   }
 }
-
+#endif
 namespace {
 
 unsigned countOccurences(const std::string& of, const std::string& in) {
@@ -981,7 +981,7 @@ TEST_P(JSITest, JSErrorsCanBeConstructedWithStack) {
   EXPECT_EQ(err.getMessage(), "message");
   EXPECT_EQ(err.getStack(), "stack");
 }
-
+#if 0
 TEST_P(JSITest, JSErrorDoesNotInfinitelyRecurse) {
   Value globalString = rt.global().getProperty(rt, "String");
   rt.global().setProperty(rt, "String", Value::undefined());
@@ -1054,7 +1054,7 @@ TEST_P(JSITest, JSErrorStackOverflowHandling) {
     EXPECT_NE(std::string(ex.what()).find("exceeded"), std::string::npos);
   }
 }
-
+#endif
 TEST_P(JSITest, ScopeDoesNotCrashTest) {
   Scope scope(rt);
   Object o(rt);

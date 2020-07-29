@@ -414,7 +414,8 @@ public:
     virtual std::shared_ptr<const jsi::PreparedJavaScript> prepareJavaScript(const std::shared_ptr<const jsi::Buffer>& buffer, std::string sourceURL) override try
     {
         // TODO: NYI
-        std::abort();
+        //std::abort();
+        return nullptr;
     }
     catch (qjs::exception&)
     {
@@ -424,7 +425,8 @@ public:
     virtual jsi::Value evaluatePreparedJavaScript(const std::shared_ptr<const jsi::PreparedJavaScript>& js) override try
     {
         // TODO: NYI
-        std::abort();
+        //std::abort();
+        return jsi::Value();
     }
     catch (qjs::exception&)
     {
@@ -733,8 +735,12 @@ public:
             g_hostObjectClassDef.exotic = &g_hostObjectExoticMethods;
 
             g_hostObjectClassId = JS_NewClassID(&g_hostObjectClassId);
-            CheckBool(JS_NewClass(_runtime.rt, g_hostObjectClassId, &g_hostObjectClassDef));
         });
+
+        if (!JS_IsRegisteredClass(_runtime.rt, g_hostObjectClassId))
+        {
+            CheckBool(JS_NewClass(_runtime.rt, g_hostObjectClassId, &g_hostObjectClassDef));
+        }
 
         JSValue obj = CheckJSValue(JS_NewObjectClass(_context.ctx, g_hostObjectClassId));
         JS_SetOpaque(obj, new HostObjectProxy { std::move(hostObject) });
@@ -1091,8 +1097,12 @@ public:
             g_hostFunctionClassDef.finalizer = HostFunctionProxy::Finalize;
 
             g_hostFunctionClassId = JS_NewClassID(&g_hostFunctionClassId);
-            CheckBool(JS_NewClass(_runtime.rt, g_hostFunctionClassId, &g_hostFunctionClassDef));
         });
+
+        if (!JS_IsRegisteredClass(_runtime.rt, g_hostFunctionClassId))
+        {
+            CheckBool(JS_NewClass(_runtime.rt, g_hostFunctionClassId, &g_hostFunctionClassDef));
+        }
 
         qjs::Value funcCtor = _context.global()["Function"];
         qjs::Value funcObj = _context.newValue(CheckJSValue(JS_NewObjectProtoClass(
@@ -1118,19 +1128,16 @@ public:
     virtual jsi::Value call(const jsi::Function& func, const jsi::Value& jsThis, const jsi::Value* args, size_t count) override try
     {
         QJS_VERIFY_ELSE_CRASH_MSG(count <= MaxCallArgCount, "Argument count must not exceed the supported max arg count.");
-        std::array<JSValue, MaxCallArgCount> jsArgs;
+        std::array<JSValue, MaxCallArgCount> jsArgsConst;
         for (size_t i = 0; i < count; ++i)
         {
-            jsArgs[i] = AsJSValueConst(*(args + i));
+            jsArgsConst[i] = AsJSValueConst(*(args + i));
         }
 
-        //TODO: Avoid extra allocation here
-        auto funcVal = AsValue(func);
-        auto thisVal = fromJSIValue(jsThis);
+        auto funcValConst = AsJSValueConst(func);
+        auto thisValConst = AsJSValueConst(jsThis);
 
-        auto result = qjs::Value { _context.ctx, JS_Call(_context.ctx, funcVal.v, thisVal.v, static_cast<int>(count), jsArgs.data()) };
-
-        return createValue(std::move(result));
+        return createValue(JS_Call(_context.ctx, funcValConst, thisValConst, static_cast<int>(count), jsArgsConst.data()));
     }
     catch (qjs::exception&)
     {
@@ -1140,23 +1147,15 @@ public:
     virtual jsi::Value callAsConstructor(const jsi::Function& func, const jsi::Value* args, size_t count) override try
     {
         QJS_VERIFY_ELSE_CRASH_MSG(count <= MaxCallArgCount, "Argument count must not exceed the supported max arg count.");
-        std::array<JSValue, MaxCallArgCount> jsArgs;
-        // If we don't want to manually call dupe and free here, we could wrap them in qjs::Values instead
+        std::array<JSValue, MaxCallArgCount> jsArgsConst;
         for (size_t i = 0; i < count; ++i)
         {
-            jsArgs[i] = JS_DupValue(_context.ctx, AsJSValueConst(*(args + i)));
+            jsArgsConst[i] = AsJSValueConst(*(args + i));
         }
 
-        auto funcVal = AsValue(func);
+        auto funcValConst = AsJSValueConst(func);
 
-        auto result = qjs::Value { _context.ctx, JS_CallConstructor(_context.ctx, funcVal.v, static_cast<int>(count), jsArgs.data()) };
-
-        for (size_t i = 0; i < count; ++i)
-        {
-            JS_FreeValue(_context.ctx, jsArgs[i]);
-        }
-
-        return createValue(std::move(result));
+        return createValue(JS_CallConstructor(_context.ctx, funcValConst, static_cast<int>(count), jsArgsConst.data()));
     }
     catch (qjs::exception&)
     {
