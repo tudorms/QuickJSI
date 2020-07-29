@@ -155,17 +155,17 @@ private:
         else if (value.isSymbol())
         {
             // TODO: Validate me!
-            return QuickJSPointerValue::GetValue(getPointerValue(value.getSymbol(*this)));
+            return AsValue(value.getSymbol(*this));
         }
         else if (value.isString())
         {
             // TODO: Validate me!
-            return QuickJSPointerValue::GetValue(getPointerValue(value.getString(*this)));
+            return AsValue(value.getString(*this));
         }
         else if (value.isObject())
         {
             // TODO: Validate me!
-            return QuickJSPointerValue::GetValue(getPointerValue(value.getObject(*this)));
+            return AsValue(value.getObject(*this));
         }
         else
         {
@@ -275,6 +275,12 @@ private:
     JSValueConst AsJSValueConst(const jsi::Pointer& ptr) noexcept
     {
         return QuickJSPointerValue::GetJSValue(getPointerValue(ptr));
+    }
+
+    template <typename T>
+    static qjs::Value AsValue(const T& obj) noexcept
+    {
+        return QuickJSPointerValue::GetValue(getPointerValue(obj));
     }
 
     std::string getExceptionDetails()
@@ -452,7 +458,7 @@ public:
     {
         try
         {
-            auto symVal = QuickJSPointerValue::GetValue(getPointerValue(sym));
+            auto symVal = AsValue(sym);
             auto toString = symVal["toString"].as<qjs::Value>();
 
             auto result = qjs::Value { _context.ctx, JS_Call(_context.ctx, toString.v, symVal.v, 0, nullptr) };
@@ -489,7 +495,7 @@ public:
 
     virtual std::string utf8(const jsi::String& str) override try
     {
-        return QuickJSPointerValue::GetValue(getPointerValue(str)).as<std::string>();
+        return AsValue(str).as<std::string>();
     }
     catch (qjs::exception&)
     {
@@ -627,7 +633,7 @@ public:
     {
         auto propName = utf8(name);
 
-        return createValue(QuickJSPointerValue::GetValue(getPointerValue(obj))[propName.c_str()]);
+        return createValue(AsValue(obj)[propName.c_str()]);
     }
     catch (qjs::exception&)
     {
@@ -658,7 +664,9 @@ public:
 
     virtual void setPropertyValue(jsi::Object& obj, const jsi::PropNameID& name, const jsi::Value& value) override try
     {
-        JS_SetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name), fromJSIValue(value).v);
+        auto propName = utf8(name);
+
+        AsValue(obj)[propName.c_str()] = fromJSIValue(value);
     }
     catch (qjs::exception&)
     {
@@ -669,7 +677,7 @@ public:
     {
         auto propName = utf8(name);
 
-        QuickJSPointerValue::GetValue(getPointerValue(obj))[propName.c_str()] = fromJSIValue(value);
+        AsValue(obj)[propName.c_str()] = fromJSIValue(value);
     }
     catch (qjs::exception&)
     {
@@ -678,7 +686,7 @@ public:
 
     virtual bool isArray(const jsi::Object& obj) const override try
     {
-        return QuickJSPointerValue::GetValue(getPointerValue(obj)).isArray();
+        return AsValue(obj).isArray();
     }
     catch (qjs::exception&)
     {
@@ -697,7 +705,7 @@ public:
 
     virtual bool isFunction(const jsi::Object& obj) const override try
     {
-        return QuickJSPointerValue::GetValue(getPointerValue(obj)).isFunction();
+        return AsValue(obj).isFunction();
     }
     catch (qjs::exception&)
     {
@@ -804,7 +812,11 @@ public:
 
     virtual jsi::Array createArray(size_t length) override try
     {
-        return createPointerValue<jsi::Object>(_context.newValue(JS_NewArray(_context.ctx))).getArray(*this);
+        // Note that in ECMAScript Array doesn't take length as a constructor argument (although many other engines do)
+        auto arr = _context.newValue(JS_NewArray(_context.ctx));
+        arr["length"] = static_cast<int64_t>(length);
+
+        return createPointerValue<jsi::Object>(std::move(arr)).getArray(*this);
     }
     catch (qjs::exception&)
     {
@@ -813,7 +825,7 @@ public:
 
     virtual size_t size(const jsi::Array& arr) override try
     {
-        return static_cast<int32_t>(QuickJSPointerValue::GetValue(getPointerValue(arr))["length"]);
+        return static_cast<int32_t>(AsValue(arr)["length"]);
     }
     catch (qjs::exception&)
     {
@@ -874,12 +886,23 @@ public:
     {
         QJS_VERIFY_ELSE_CRASH_MSG(count <= MaxCallArgCount, "Argument count must not exceed the supported max arg count.");
         std::array<JSValue, MaxCallArgCount> jsArgs;
+        // If we don't want to manually call dupe and free here, we could wrap them in qjs::Values instead
         for (size_t i = 0; i < count; ++i)
         {
-            jsArgs[i] = AsJSValueConst(*(args + i));
+            jsArgs[i] = JS_DupValue(_context.ctx, AsJSValueConst(*(args + i)));
         }
 
-        return createValue(JS_Call(_context.ctx, AsJSValueConst(func), AsJSValueConst(jsThis), static_cast<int>(count), jsArgs.data()));
+        auto funcVal = AsValue(func);
+        auto thisVal = fromJSIValue(jsThis);
+
+        auto result = qjs::Value { _context.ctx, JS_Call(_context.ctx, funcVal.v, thisVal.v, static_cast<int>(count), jsArgs.data()) };
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            JS_FreeValue(_context.ctx, jsArgs[i]);
+        }
+
+        return createValue(std::move(result));
     }
     catch (qjs::exception&)
     {
@@ -898,8 +921,7 @@ public:
 
     virtual bool strictEquals(const jsi::Symbol& a, const jsi::Symbol& b) const override try
     {
-        // TODO: check this (are symbols really unique)?
-        return QuickJSPointerValue::GetValue(getPointerValue(a)) == QuickJSPointerValue::GetValue(getPointerValue(b));
+        return AsValue(a) == AsValue(b);
     }
     catch (qjs::exception&)
     {
@@ -908,7 +930,7 @@ public:
 
     virtual bool strictEquals(const jsi::String& a, const jsi::String& b) const override try
     {
-        return QuickJSPointerValue::GetValue(getPointerValue(a)).as<std::string>() == QuickJSPointerValue::GetValue(getPointerValue(b)).as<std::string>();
+        return AsValue(a).as<std::string>() == AsValue(b).as<std::string>();
     }
     catch (qjs::exception&)
     {
@@ -917,7 +939,7 @@ public:
 
     virtual bool strictEquals(const jsi::Object& a, const jsi::Object& b) const override try
     {
-        return QuickJSPointerValue::GetValue(getPointerValue(a)) == QuickJSPointerValue::GetValue(getPointerValue(b));
+        return AsValue(a) == AsValue(b);
     }
     catch (qjs::exception&)
     {
