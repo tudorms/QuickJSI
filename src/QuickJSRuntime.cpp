@@ -175,6 +175,11 @@ private:
 
     jsi::Value createValue(JSValue&& jsValue)
     {
+        if (JS_IsException(jsValue))
+        {
+            ThrowJSError();
+        }
+
         return createValue(_context.newValue(std::move(jsValue)));
     }
 
@@ -297,6 +302,27 @@ private:
     {
         auto self = const_cast<QuickJSRuntime*>(this);
         throw jsi::JSError(*self, self->getExceptionDetails());
+    }
+
+    // Throw if value is negative. It indicates an error. 
+    int CheckBool(int value)
+    {
+        if (value < 0)
+        {
+            ThrowJSError();
+        }
+
+        return value;
+    }
+
+    JSValue CheckJSValue(JSValue&& value)
+    {
+        if (JS_IsException(value))
+        {
+            ThrowJSError();
+        }
+
+        return std::move(value);
     }
 
 public:
@@ -427,8 +453,7 @@ public:
         const char* str = JS_AtomToCString(_context.ctx, AsJSAtom(sym));
         if (!str)
         {
-            // TODO: NYI - report error
-            std::abort();
+            ThrowJSError();
         }
         std::string result { str };
         JS_FreeCString(_context.ctx, str);
@@ -580,12 +605,10 @@ public:
             g_hostObjectClassDef.exotic = &g_hostObjectExoticMethods;
 
             g_hostObjectClassId = JS_NewClassID(nullptr);
-            //TODO: check error
-            JS_NewClass(_runtime.rt, g_hostObjectClassId, &g_hostObjectClassDef);
+            CheckBool(JS_NewClass(_runtime.rt, g_hostObjectClassId, &g_hostObjectClassDef));
         });
 
-        //TODO: check error
-        JSValue obj = JS_NewObjectClass(_context.ctx, g_hostObjectClassId);
+        JSValue obj = CheckJSValue(JS_NewObjectClass(_context.ctx, g_hostObjectClassId));
         JS_SetOpaque(obj, new HostObjectProxy { *this, std::move(hostObject) });
         return createPointerValue<jsi::Object>(_context.newValue(std::move(obj)));
     }
@@ -636,9 +659,7 @@ public:
 
     virtual bool hasProperty(const jsi::Object& obj, const jsi::PropNameID& name) override try
     {
-        //TODO: handle exception
-        //TODO: Should we free the atom?
-        return JS_HasProperty(_context.ctx, AsJSValueConst(obj), AsJSAtom(name));
+        return CheckBool(JS_HasProperty(_context.ctx, AsJSValueConst(obj), AsJSAtom(name)));
     }
     catch (qjs::exception&)
     {
@@ -647,9 +668,7 @@ public:
 
     virtual bool hasProperty(const jsi::Object& obj, const jsi::String& name) override try
     {
-        //TODO: free atom
-        //TODO: handle exception
-        return JS_HasProperty(_context.ctx, AsJSValueConst(obj), JS_ValueToAtom(_context.ctx, AsJSValueConst(name)));
+        return CheckBool(JS_HasProperty(_context.ctx, AsJSValueConst(obj), JS_ValueToAtom(_context.ctx, AsJSValueConst(name))));
     }
     catch (qjs::exception&)
     {
@@ -658,7 +677,7 @@ public:
 
     virtual void setPropertyValue(jsi::Object& obj, const jsi::PropNameID& name, const jsi::Value& value) override try
     {
-        JS_SetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name), fromJSIValue(value).v);
+        CheckBool(JS_SetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name), fromJSIValue(value).v));
     }
     catch (qjs::exception&)
     {
@@ -853,7 +872,7 @@ public:
     {
         auto jsValue = AsJSValueConst(value);
         JS_DupValue(_context.ctx, jsValue);
-        JS_SetPropertyUint32(_context.ctx, AsJSValueConst(arr), static_cast<uint32_t>(i), jsValue);
+        CheckBool(JS_SetPropertyUint32(_context.ctx, AsJSValueConst(arr), static_cast<uint32_t>(i), jsValue));
     }
     catch (qjs::exception&)
     {
@@ -926,8 +945,7 @@ public:
 
     virtual bool instanceOf(const jsi::Object& o, const jsi::Function& f) override try
     {
-        // TODO: NYI
-        std::abort();
+        return CheckBool(JS_IsInstanceOf(_context.ctx, AsJSValueConst(o), AsJSValueConst(f)));
     }
     catch (qjs::exception&)
     {
