@@ -1101,7 +1101,9 @@ public:
         JS_DefineProperty(_context.ctx, funcObj.v, JS_NewAtom(_context.ctx, "length"), JS_NewUint32(_context.ctx, paramCount),
             JS_UNDEFINED, JS_UNDEFINED, JS_PROP_HAS_VALUE | JS_PROP_HAS_CONFIGURABLE);
 
-        JS_DefineProperty(_context.ctx, funcObj.v, JS_NewAtom(_context.ctx, "name"), AsJSValue(name),
+        JSAtom funcNameAtom = AsJSAtom(name);
+        qjs::Value funcNameValue = _context.newValue(JS_AtomToValue(_context.ctx, funcNameAtom));
+        JS_DefineProperty(_context.ctx, funcObj.v, JS_NewAtom(_context.ctx, "name"), funcNameValue.v,
             JS_UNDEFINED, JS_UNDEFINED, JS_PROP_HAS_VALUE);
 
         return createPointerValue<jsi::Object>(std::move(funcObj)).getFunction(*this);
