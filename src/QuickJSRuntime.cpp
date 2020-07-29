@@ -3,8 +3,8 @@
 #include <memory>
 #include <mutex>
 #include <sstream>
+#include <unordered_set>
 
-#include <quickjs-libc.h>
 #include <quickjspp.hpp>
 
 #include "QuickJSRuntime.h"
@@ -31,7 +31,7 @@ namespace quickjs {
 
 namespace {
 std::once_flag g_hostObjectClassOnceFlag;
-JSClassID g_hostObjectClassId;
+JSClassID g_hostObjectClassId {};
 JSClassExoticMethods g_hostObjectExoticMethods;
 JSClassDef g_hostObjectClassDef;
 } // namespace
@@ -241,7 +241,7 @@ private:
         return fromJSIValue(value).v;
     }
 
-    JSValueConst AsJSValueConst(const jsi::Value& value) noexcept
+    JSValueConst AsJSValueConst(const jsi::Value& value) const noexcept
     {
         if (value.isUndefined())
         {
@@ -277,7 +277,7 @@ private:
         }
     }
 
-    JSValueConst AsJSValueConst(const jsi::Pointer& ptr) noexcept
+    JSValueConst AsJSValueConst(const jsi::Pointer& ptr) const noexcept
     {
         return QuickJSPointerValue::GetJSValue(getPointerValue(ptr));
     }
@@ -286,6 +286,11 @@ private:
     static qjs::Value AsValue(const T& obj) noexcept
     {
         return QuickJSPointerValue::GetValue(getPointerValue(obj));
+    }
+
+    JSValue CloneJSValue(const jsi::Value& value) noexcept
+    {
+        return JS_DupValue(_context.ctx, AsJSValueConst(value));
     }
 
     std::string getExceptionDetails()
@@ -307,7 +312,19 @@ private:
     void ThrowJSError() const
     {
         auto self = const_cast<QuickJSRuntime*>(this);
-        throw jsi::JSError(*self, self->getExceptionDetails());
+        auto exc = self->_context.getException();
+        std::string message;
+        std::string stack;
+        if (JS_HasProperty(_context.ctx, exc.v, JS_NewAtom(_context.ctx, "message")))
+        {
+            message = (std::string)exc["message"];
+        }
+        if (JS_HasProperty(_context.ctx, exc.v, JS_NewAtom(_context.ctx, "stack")))
+        {
+            stack = (std::string)exc["stack"];
+        }
+
+        throw jsi::JSError(*self, std::move(message), std::move(stack));
     }
 
     // Throw if value is negative. It indicates an error. 
@@ -331,10 +348,46 @@ private:
         return std::move(value);
     }
 
+    static QuickJSRuntime* FromContext(JSContext* ctx)
+    {
+        return static_cast<QuickJSRuntime*>(JS_GetContextOpaque(ctx));
+    }
+
+    static int SetException(JSContext* ctx, const char* message, const char* stack)
+    {
+        JSValue errorObj = JS_NewError(ctx);
+        if (JS_IsException(errorObj))
+        {
+            errorObj = JS_NULL;
+        }
+        else
+        {
+            if (!message)
+            {
+                message = "Unknown error";
+            }
+
+            JS_DefinePropertyValue(ctx, errorObj, JS_NewAtom(ctx, "message"),
+                JS_NewString(ctx, message),
+                JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+
+            if (stack)
+            {
+                JS_DefinePropertyValue(ctx, errorObj, JS_NewAtom(ctx, "stack"),
+                    JS_NewString(ctx, stack),
+                    JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
+            }
+        }
+
+        JS_Throw(ctx, errorObj);
+        return -1;
+    }
+
 public:
     QuickJSRuntime(QuickJSRuntimeArgs&& args) :
         _runtime(), _context(_runtime)
     {
+        JS_SetContextOpaque(_context.ctx, this);
     }
 
     ~QuickJSRuntime()
@@ -545,7 +598,7 @@ public:
         }
 
         QuickJSRuntime& m_runtime;
-        std::shared_ptr<jsi::HostObject>&& m_hostObject;
+        std::shared_ptr<jsi::HostObject> m_hostObject;
     };
 
     virtual jsi::Object createObject(std::shared_ptr<jsi::HostObject> hostObject) override try
@@ -557,40 +610,106 @@ public:
             {
             }
 
-            static int GetOwnProperty(JSContext* ctx, JSPropertyDescriptor* desc, JSValueConst obj, JSAtom prop)
+            static int GetOwnProperty(JSContext* ctx, JSPropertyDescriptor* desc, JSValueConst obj, JSAtom prop) noexcept try
             {
-                // TODO: NYI
-                std::abort();
+                QuickJSRuntime* runtime = QuickJSRuntime::FromContext(ctx);
+                auto proxy = GetProxy(ctx, obj);
+                jsi::Value result = proxy->m_hostObject->get(*runtime, runtime->createPropNameID(JS_DupAtom(ctx, prop)));
+                // TODO: implement move here for result
+                desc->value = runtime->CloneJSValue(result);
+                return 1;
+            }
+            catch (const jsi::JSError& jsError)
+            {
+                return QuickJSRuntime::SetException(ctx, jsError.getMessage().c_str(), jsError.getStack().c_str());
+            }
+            catch (const std::exception& ex)
+            {
+                return QuickJSRuntime::SetException(ctx, ex.what(), nullptr);
+            }
+            catch (...)
+            {
+                return QuickJSRuntime::SetException(ctx, "Unexpected error", nullptr);
             }
 
-            static int GetOwnPropertyNames(JSContext* ctx, JSPropertyEnum** ptab, uint32_t* plen, JSValueConst obj)
+            static int GetOwnPropertyNames(JSContext* ctx, JSPropertyEnum** ptab, uint32_t* plen, JSValueConst obj) noexcept try
             {
-                // TODO: NYI
-                std::abort();
+                *ptab = nullptr;
+                *plen = 0;
+                QuickJSRuntime* runtime = QuickJSRuntime::FromContext(ctx);
+                auto proxy = GetProxy(ctx, obj);
+                std::vector<jsi::PropNameID> propNames = proxy->m_hostObject->getPropertyNames(*runtime);
+                if (!propNames.empty())
+                {
+                    std::unordered_set<JSAtom> uniqueAtoms;
+                    uniqueAtoms.reserve(propNames.size());
+                    for (size_t i = 0; i < propNames.size(); ++i)
+                    {
+                        uniqueAtoms.insert(JS_DupAtom(ctx, AsJSAtom(propNames[i])));
+                    }
+
+                    *ptab = (JSPropertyEnum*) js_malloc(ctx, uniqueAtoms.size() * sizeof(JSPropertyEnum));
+                    *plen = uniqueAtoms.size();
+                    size_t index = 0;
+                    for (auto atom : uniqueAtoms)
+                    {
+                        (*ptab + index)->atom = atom;
+                        (*ptab + index)->is_enumerable = 1;
+                        ++index;
+                    }
+                }
+
+                return 0; // Must return 0 on success
+            }
+            catch (const jsi::JSError& jsError)
+            {
+                return QuickJSRuntime::SetException(ctx, jsError.getMessage().c_str(), jsError.getStack().c_str());
+            }
+            catch (const std::exception& ex)
+            {
+                return QuickJSRuntime::SetException(ctx, ex.what(), nullptr);
+            }
+            catch (...)
+            {
+                return QuickJSRuntime::SetException(ctx, "Unexpected error", nullptr);
             }
 
-            static int DeleteProperty(JSContext* ctx, JSValueConst obj, JSAtom prop)
+            static int SetProperty(JSContext* ctx, JSValueConst obj, JSAtom prop,
+                JSValueConst value, JSValueConst receiver, int flags) noexcept try
             {
-                // TODO: NYI
-                std::abort();
+                QuickJSRuntime* runtime = QuickJSRuntime::FromContext(ctx);
+                auto proxy = GetProxy(ctx, obj);
+                //TODO: use reference type to avoid extra copy
+                proxy->m_hostObject->set(*runtime, runtime->createPropNameID(JS_DupAtom(ctx, prop)), runtime->createValue(JS_DupValue(ctx, value)));
+                return 1;
+            }
+            catch (const jsi::JSError& jsError)
+            {
+                return QuickJSRuntime::SetException(ctx, jsError.getMessage().c_str(), jsError.getStack().c_str());
+            }
+            catch (const std::exception& ex)
+            {
+                return QuickJSRuntime::SetException(ctx, ex.what(), nullptr);
+            }
+            catch (...)
+            {
+                return QuickJSRuntime::SetException(ctx, "Unexpected error", nullptr);
             }
 
-            static int DefineOwnProperty(JSContext* ctx, JSValueConst this_obj, JSAtom prop,
-                JSValueConst val, JSValueConst getter, JSValueConst setter, int flags)
-            {
-                // TODO: NYI
-                std::abort();
-            }
-
-            static void Finalize(JSRuntime* rt, JSValue val)
+            static void Finalize(JSRuntime* rt, JSValue val) noexcept
             {
                 // Take ownership of proxy object to delete it
                 std::unique_ptr<HostObjectProxy> proxy { GetProxy(val) };
             }
 
-            static HostObjectProxy* GetProxy(JSValue val)
+            static HostObjectProxy* GetProxy(JSValue obj)
             {
-                return static_cast<HostObjectProxy*>(JS_GetOpaque(val, g_hostObjectClassId));
+                return static_cast<HostObjectProxy*>(JS_GetOpaque(obj, g_hostObjectClassId));
+            }
+
+            static HostObjectProxy* GetProxy(JSContext* ctx, JSValue obj)
+            {
+                return static_cast<HostObjectProxy*>(JS_GetOpaque2(ctx, obj, g_hostObjectClassId));
             }
         };
 
@@ -602,15 +721,14 @@ public:
             g_hostObjectExoticMethods = {};
             g_hostObjectExoticMethods.get_own_property = HostObjectProxy::GetOwnProperty;
             g_hostObjectExoticMethods.get_own_property_names = HostObjectProxy::GetOwnPropertyNames;
-            g_hostObjectExoticMethods.delete_property = HostObjectProxy::DeleteProperty;
-            g_hostObjectExoticMethods.define_own_property = HostObjectProxy::DefineOwnProperty;
+            g_hostObjectExoticMethods.set_property = HostObjectProxy::SetProperty;
 
             g_hostObjectClassDef = {};
             g_hostObjectClassDef.class_name = "HostObject";
             g_hostObjectClassDef.finalizer = HostObjectProxy::Finalize;
             g_hostObjectClassDef.exotic = &g_hostObjectExoticMethods;
 
-            g_hostObjectClassId = JS_NewClassID(nullptr);
+            g_hostObjectClassId = JS_NewClassID(&g_hostObjectClassId);
             CheckBool(JS_NewClass(_runtime.rt, g_hostObjectClassId, &g_hostObjectClassDef));
         });
 
@@ -623,10 +741,9 @@ public:
         ThrowJSError();
     }
 
-    virtual std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object&) override try
+    virtual std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object& obj) override try
     {
-        // TODO: NYI
-        std::abort();
+        return static_cast<HostObjectProxyBase*>(JS_GetOpaque2(_context.ctx, AsJSValueConst(obj), g_hostObjectClassId))->m_hostObject;
     }
     catch (qjs::exception&)
     {
@@ -731,10 +848,9 @@ public:
         ThrowJSError();
     }
 
-    virtual bool isHostObject(const jsi::Object&) const override try
+    virtual bool isHostObject(const jsi::Object& obj) const override try
     {
-        // TODO: NYI
-        std::abort();
+        return JS_GetOpaque2(_context.ctx, AsJSValueConst(obj), g_hostObjectClassId) != nullptr;
     }
     catch (qjs::exception&)
     {
@@ -903,21 +1019,16 @@ public:
     {
         QJS_VERIFY_ELSE_CRASH_MSG(count <= MaxCallArgCount, "Argument count must not exceed the supported max arg count.");
         std::array<JSValue, MaxCallArgCount> jsArgs;
-        // If we don't want to manually call dupe and free here, we could wrap them in qjs::Values instead
         for (size_t i = 0; i < count; ++i)
         {
-            jsArgs[i] = JS_DupValue(_context.ctx, AsJSValueConst(*(args + i)));
+            jsArgs[i] = AsJSValueConst(*(args + i));
         }
 
+        //TODO: Avoid extra allocation here
         auto funcVal = AsValue(func);
         auto thisVal = fromJSIValue(jsThis);
 
         auto result = qjs::Value { _context.ctx, JS_Call(_context.ctx, funcVal.v, thisVal.v, static_cast<int>(count), jsArgs.data()) };
-
-        for (size_t i = 0; i < count; ++i)
-        {
-            JS_FreeValue(_context.ctx, jsArgs[i]);
-        }
 
         return createValue(std::move(result));
     }
