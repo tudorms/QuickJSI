@@ -34,6 +34,10 @@ std::once_flag g_hostObjectClassOnceFlag;
 JSClassID g_hostObjectClassId {};
 JSClassExoticMethods g_hostObjectExoticMethods;
 JSClassDef g_hostObjectClassDef;
+
+std::once_flag g_hostFunctionClassOnceFlag;
+JSClassID g_hostFunctionClassId {};
+JSClassDef g_hostFunctionClassDef;
 } // namespace
 
 static constexpr size_t MaxCallArgCount = 32;
@@ -591,22 +595,20 @@ public:
 
     struct HostObjectProxyBase
     {
-        HostObjectProxyBase(QuickJSRuntime& runtime, std::shared_ptr<jsi::HostObject>&& hostObject) noexcept
-            : m_runtime { runtime }
-            , m_hostObject { std::move(hostObject) }
+        HostObjectProxyBase(std::shared_ptr<jsi::HostObject>&& hostObject) noexcept
+            : _hostObject { std::move(hostObject) }
         {
         }
 
-        QuickJSRuntime& m_runtime;
-        std::shared_ptr<jsi::HostObject> m_hostObject;
+        std::shared_ptr<jsi::HostObject> _hostObject;
     };
 
     virtual jsi::Object createObject(std::shared_ptr<jsi::HostObject> hostObject) override try
     {
         struct HostObjectProxy : HostObjectProxyBase
         {
-            HostObjectProxy(QuickJSRuntime& runtime, std::shared_ptr<jsi::HostObject>&& hostObject) noexcept
-                : HostObjectProxyBase { runtime, std::move(hostObject) }
+            HostObjectProxy(std::shared_ptr<jsi::HostObject>&& hostObject) noexcept
+                : HostObjectProxyBase { std::move(hostObject) }
             {
             }
 
@@ -614,7 +616,7 @@ public:
             {
                 QuickJSRuntime* runtime = QuickJSRuntime::FromContext(ctx);
                 auto proxy = GetProxy(ctx, obj);
-                jsi::Value result = proxy->m_hostObject->get(*runtime, runtime->createPropNameID(JS_DupAtom(ctx, prop)));
+                jsi::Value result = proxy->_hostObject->get(*runtime, runtime->createPropNameID(JS_DupAtom(ctx, prop)));
                 // TODO: implement move here for result
                 desc->value = runtime->CloneJSValue(result);
                 return 1;
@@ -638,7 +640,7 @@ public:
                 *plen = 0;
                 QuickJSRuntime* runtime = QuickJSRuntime::FromContext(ctx);
                 auto proxy = GetProxy(ctx, obj);
-                std::vector<jsi::PropNameID> propNames = proxy->m_hostObject->getPropertyNames(*runtime);
+                std::vector<jsi::PropNameID> propNames = proxy->_hostObject->getPropertyNames(*runtime);
                 if (!propNames.empty())
                 {
                     std::unordered_set<JSAtom> uniqueAtoms;
@@ -680,7 +682,7 @@ public:
                 QuickJSRuntime* runtime = QuickJSRuntime::FromContext(ctx);
                 auto proxy = GetProxy(ctx, obj);
                 //TODO: use reference type to avoid extra copy
-                proxy->m_hostObject->set(*runtime, runtime->createPropNameID(JS_DupAtom(ctx, prop)), runtime->createValue(JS_DupValue(ctx, value)));
+                proxy->_hostObject->set(*runtime, runtime->createPropNameID(JS_DupAtom(ctx, prop)), runtime->createValue(JS_DupValue(ctx, value)));
                 return 1;
             }
             catch (const jsi::JSError& jsError)
@@ -713,7 +715,7 @@ public:
             }
         };
 
-        // Register custom ClassDef for HostObject only one.
+        // Register custom ClassDef for HostObject only once.
         // We use it to associate the HostObject with JSValue with help of opaque value
         // and to implement the HostObject proxy.
         std::call_once(g_hostObjectClassOnceFlag, [this]()
@@ -733,7 +735,7 @@ public:
         });
 
         JSValue obj = CheckJSValue(JS_NewObjectClass(_context.ctx, g_hostObjectClassId));
-        JS_SetOpaque(obj, new HostObjectProxy { *this, std::move(hostObject) });
+        JS_SetOpaque(obj, new HostObjectProxy { std::move(hostObject) });
         return createPointerValue<jsi::Object>(_context.newValue(std::move(obj)));
     }
     catch (qjs::exception&)
@@ -743,17 +745,16 @@ public:
 
     virtual std::shared_ptr<jsi::HostObject> getHostObject(const jsi::Object& obj) override try
     {
-        return static_cast<HostObjectProxyBase*>(JS_GetOpaque2(_context.ctx, AsJSValueConst(obj), g_hostObjectClassId))->m_hostObject;
+        return static_cast<HostObjectProxyBase*>(JS_GetOpaque2(_context.ctx, AsJSValueConst(obj), g_hostObjectClassId))->_hostObject;
     }
     catch (qjs::exception&)
     {
         ThrowJSError();
     }
 
-    virtual jsi::HostFunctionType& getHostFunction(const jsi::Function&) override try
+    virtual jsi::HostFunctionType& getHostFunction(const jsi::Function& func) override try
     {
-        // TODO: NYI
-        std::abort();
+        return static_cast<HostFunctionProxyBase*>(JS_GetOpaque2(_context.ctx, AsJSValueConst(func), g_hostFunctionClassId))->_hostFunction;
     }
     catch (qjs::exception&)
     {
@@ -857,10 +858,9 @@ public:
         ThrowJSError();
     }
 
-    virtual bool isHostFunction(const jsi::Function&) const override try
+    virtual bool isHostFunction(const jsi::Function& func) const override try
     {
-        // TODO: NYI
-        std::abort();
+        return JS_GetOpaque2(_context.ctx, AsJSValueConst(func), g_hostFunctionClassId) != nullptr;
     }
     catch (qjs::exception&)
     {
@@ -1005,10 +1005,106 @@ public:
         ThrowJSError();
     }
 
+    struct HostFunctionProxyBase
+    {
+        HostFunctionProxyBase(jsi::HostFunctionType&& hostFunction)
+            : _hostFunction { std::move(hostFunction) }
+        {
+        }
+
+        jsi::HostFunctionType _hostFunction;
+    };
+
     virtual jsi::Function createFunctionFromHostFunction(const jsi::PropNameID& name, unsigned int paramCount, jsi::HostFunctionType func) override try
     {
-        // TODO: NYI
-        std::abort();
+        struct HostFunctionProxy : HostFunctionProxyBase
+        {
+            HostFunctionProxy(jsi::HostFunctionType&& hostFunction)
+                : HostFunctionProxyBase { std::move(hostFunction) }
+            {
+            }
+
+            static JSValue Call(JSContext* ctx, JSValueConst func_obj,
+                JSValueConst this_val, int argc, JSValueConst* argv,
+                int flags) noexcept try
+            {
+                QJS_VERIFY_ELSE_CRASH_MSG(argc <= MaxCallArgCount, "Argument count must not exceed MaxCallArgCount");
+
+                QuickJSRuntime* runtime = QuickJSRuntime::FromContext(ctx);
+                auto proxy = GetProxy(ctx, func_obj);
+
+                //TODO: avoid extra memory allocation here when creating jsi::Value
+                jsi::Value thisArg = runtime->createValue(JS_DupValue(ctx, this_val));
+                std::array<jsi::Value, MaxCallArgCount> args;
+                for (int i = 0; i < argc; ++i)
+                {
+                    args[i] = runtime->createValue(JS_DupValue(ctx, argv[i]));
+                }
+
+                jsi::Value result = proxy->_hostFunction(*runtime, thisArg, args.data(), argc);
+                //TODO: Implement move semantic instead for the return value
+                return runtime->CloneJSValue(result);
+            }
+            catch (const jsi::JSError& jsError)
+            {
+                QuickJSRuntime::SetException(ctx, jsError.getMessage().c_str(), jsError.getStack().c_str());
+                return JS_EXCEPTION;
+            }
+            catch (const std::exception& ex)
+            {
+                QuickJSRuntime::SetException(ctx, ex.what(), nullptr);
+                return JS_EXCEPTION;
+            }
+            catch (...)
+            {
+                QuickJSRuntime::SetException(ctx, "Unexpected error", nullptr);
+                return JS_EXCEPTION;
+            }
+
+            static void Finalize(JSRuntime* rt, JSValue val) noexcept
+            {
+                // Take ownership of proxy object to delete it
+                std::unique_ptr<HostFunctionProxy> proxy { GetProxy(val) };
+            }
+
+            static HostFunctionProxy* GetProxy(JSValue obj)
+            {
+                return static_cast<HostFunctionProxy*>(JS_GetOpaque(obj, g_hostFunctionClassId));
+            }
+
+            static HostFunctionProxy* GetProxy(JSContext* ctx, JSValue obj)
+            {
+                return static_cast<HostFunctionProxy*>(JS_GetOpaque2(ctx, obj, g_hostFunctionClassId));
+            }
+        };
+
+        // Register custom ClassDef for HostFunction only once.
+        // We use it to associate the HostFunction with JSValue with help of opaque value
+        // and to implement the HostFunction proxy.
+        std::call_once(g_hostFunctionClassOnceFlag, [this]()
+        {
+            g_hostFunctionClassDef = {};
+            g_hostFunctionClassDef.class_name = "HostFunction";
+            g_hostFunctionClassDef.call = HostFunctionProxy::Call;
+            g_hostFunctionClassDef.finalizer = HostFunctionProxy::Finalize;
+
+            g_hostFunctionClassId = JS_NewClassID(&g_hostFunctionClassId);
+            CheckBool(JS_NewClass(_runtime.rt, g_hostFunctionClassId, &g_hostFunctionClassDef));
+        });
+
+        qjs::Value funcCtor = _context.global()["Function"];
+        qjs::Value funcObj = _context.newValue(CheckJSValue(JS_NewObjectProtoClass(
+            _context.ctx, JS_GetPrototype(_context.ctx, funcCtor.v), g_hostFunctionClassId)));
+
+        JS_SetOpaque(funcObj.v, new HostFunctionProxy { std::move(func) });
+
+        JS_DefineProperty(_context.ctx, funcObj.v, JS_NewAtom(_context.ctx, "length"), JS_NewUint32(_context.ctx, paramCount),
+            JS_UNDEFINED, JS_UNDEFINED, JS_PROP_HAS_VALUE | JS_PROP_HAS_CONFIGURABLE);
+
+        JS_DefineProperty(_context.ctx, funcObj.v, JS_NewAtom(_context.ctx, "name"), AsJSValue(name),
+            JS_UNDEFINED, JS_UNDEFINED, JS_PROP_HAS_VALUE);
+
+        return createPointerValue<jsi::Object>(std::move(funcObj)).getFunction(*this);
     }
     catch (qjs::exception&)
     {
