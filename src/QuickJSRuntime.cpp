@@ -753,45 +753,43 @@ public:
 
     virtual jsi::Array getPropertyNames(const jsi::Object& obj) override try
     {
-        // Handle to the null JS value.
-        qjs::Value jsNull = _context.newValue(JS_NULL);
-
         // Handle to the Object constructor.
         qjs::Value objectConstructor = _context.global()["Object"];
 
         // Handle to the Object.prototype Object.
         qjs::Value objectPrototype = objectConstructor["prototype"];
 
-        // Handle to the Object.prototype.propertyIsEnumerable() Function.
-        qjs::Value objectPrototypePropertyIsEnumerable = objectPrototype["propertyIsEnumerable"];
-
         // We now traverse the object's property chain and collect all enumerable
         // property names.
-        std::vector < qjs::Value> enumerablePropNames {};
-        qjs::Value currentObjectOnPrototypeChain = _context.newValue(AsJSValue(obj));
+        std::vector <qjs::Value> enumerablePropNames {};
+        auto currentObjectOnPrototypeChain = AsJSValueConst(obj);
 
         // We have a small optimization here where we stop traversing the prototype
         // chain as soon as we hit Object.prototype. However, we still need to check
         // for null here, as one can create an Object with no prototype through
         // Object.create(null).
-        while (currentObjectOnPrototypeChain != objectPrototype &&
-            currentObjectOnPrototypeChain != jsNull)
+        while (JS_VALUE_GET_PTR(currentObjectOnPrototypeChain) != JS_VALUE_GET_PTR(objectPrototype.v) &&
+            !JS_IsNull(currentObjectOnPrototypeChain))
         {
             JSPropertyEnum* propNamesEnum;
             uint32_t propNamesSize;
             //TODO: check error
-            JS_GetOwnPropertyNames(_context.ctx, &propNamesEnum, &propNamesSize, currentObjectOnPrototypeChain.v, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY);
+            JS_GetOwnPropertyNames(_context.ctx, &propNamesEnum, &propNamesSize, currentObjectOnPrototypeChain, JS_GPN_STRING_MASK | JS_GPN_ENUM_ONLY);
 
             for (uint32_t i = 0; i < propNamesSize; ++i)
             {
                 JSPropertyEnum* propName = propNamesEnum + i;
                 if (propName->is_enumerable)
                 {
-                    enumerablePropNames.emplace_back(_context.newValue(JS_AtomToValue(_context.ctx, propName->atom)));
+                    enumerablePropNames.emplace_back(_context.ctx, JS_AtomToValue(_context.ctx, propName->atom));
                 }
+
+                JS_FreeAtom(_context.ctx, propName->atom);
             }
 
-            currentObjectOnPrototypeChain = _context.newValue(JS_GetPrototype(_context.ctx, currentObjectOnPrototypeChain.v));
+            js_free(_context.ctx, propNamesEnum);
+
+            currentObjectOnPrototypeChain = JS_GetPrototype(_context.ctx, currentObjectOnPrototypeChain);
         }
 
         size_t enumerablePropNamesSize = enumerablePropNames.size();
