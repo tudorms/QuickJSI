@@ -616,26 +616,28 @@ public:
             {
             }
 
-            static int GetOwnProperty(JSContext* ctx, JSPropertyDescriptor* desc, JSValueConst obj, JSAtom prop) noexcept try
+            static JSValue GetProperty(JSContext* ctx, JSValueConst obj, JSAtom prop, JSValueConst /*receiver*/) noexcept try
             {
                 QuickJSRuntime* runtime = QuickJSRuntime::FromContext(ctx);
                 auto proxy = GetProxy(ctx, obj);
                 jsi::Value result = proxy->_hostObject->get(*runtime, runtime->createPropNameID(JS_DupAtom(ctx, prop)));
                 // TODO: implement move here for result
-                desc->value = runtime->CloneJSValue(result);
-                return 1;
+                return runtime->CloneJSValue(result);
             }
             catch (const jsi::JSError& jsError)
             {
-                return QuickJSRuntime::SetException(ctx, jsError.getMessage().c_str(), jsError.getStack().c_str());
+                QuickJSRuntime::SetException(ctx, jsError.getMessage().c_str(), jsError.getStack().c_str());
+                return JS_EXCEPTION;
             }
             catch (const std::exception& ex)
             {
-                return QuickJSRuntime::SetException(ctx, ex.what(), nullptr);
+                QuickJSRuntime::SetException(ctx, ex.what(), nullptr);
+                return JS_EXCEPTION;
             }
             catch (...)
             {
-                return QuickJSRuntime::SetException(ctx, "Unexpected error", nullptr);
+                QuickJSRuntime::SetException(ctx, "Unexpected error", nullptr);
+                return JS_EXCEPTION;
             }
 
             static int GetOwnPropertyNames(JSContext* ctx, JSPropertyEnum** ptab, uint32_t* plen, JSValueConst obj) noexcept try
@@ -725,7 +727,7 @@ public:
         std::call_once(g_hostObjectClassOnceFlag, [this]()
         {
             g_hostObjectExoticMethods = {};
-            g_hostObjectExoticMethods.get_own_property = HostObjectProxy::GetOwnProperty;
+            g_hostObjectExoticMethods.get_property = HostObjectProxy::GetProperty;
             g_hostObjectExoticMethods.get_own_property_names = HostObjectProxy::GetOwnPropertyNames;
             g_hostObjectExoticMethods.set_property = HostObjectProxy::SetProperty;
 
