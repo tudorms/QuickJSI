@@ -10,6 +10,12 @@
 
 #include "QuickJSRuntime.h"
 
+#ifdef TRACE_FUNCTION_CALLS
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <debugapi.h>
+#endif
+
 using namespace facebook;
 using namespace std::string_literals;
 
@@ -52,18 +58,19 @@ private:
 
     class QuickJSPointerValue final : public jsi::Runtime::PointerValue
     {
-        QuickJSPointerValue(qjs::Value&& val) :
-            _val(std::move(val))
+        QuickJSPointerValue(qjs::Value &&val) :
+            _val(std::move(val)), _threadId(std::this_thread::get_id())
         {
         }
 
         QuickJSPointerValue(const qjs::Value& val) :
-            _val(val)
+            _val(val), _threadId(std::this_thread::get_id())
         {
         }
 
         void invalidate() override
         {
+            assert(_threadId == std::this_thread::get_id());
             delete this;
         }
 
@@ -79,48 +86,98 @@ private:
 
     private:
         qjs::Value _val;
+        std::thread::id _threadId;
 
     protected:
         friend class QuickJSRuntime;
     };
 
+    struct Atom final
+    {
+        Atom() = default;
+        Atom(std::nullptr_t) noexcept {}
+        Atom(JSContext *ctx, const char *str) noexcept : a{JS_NewAtom(ctx, str)}, ctx{ctx} {}
+        Atom(JSContext *ctx, JSAtom&& a) noexcept : a{a}, ctx{ctx} {}
+
+        Atom(JSContext *ctx, const JSAtom &a) noexcept : a{a}, ctx{ctx}
+        {
+            if (ctx)
+                JS_DupAtom(ctx, a);
+        }
+
+        Atom(const Atom &other) noexcept : a{other.a}, ctx{other.ctx}
+        {
+            if (ctx)
+                JS_DupAtom(ctx, a);
+        }
+
+        Atom(Atom &&other) noexcept : a{other.a}, ctx{std::exchange(other.ctx, nullptr)} {}
+
+        Atom& operator=(const Atom& other) noexcept
+        {
+            if (this != &other)
+            {
+                if (ctx)
+                    JS_FreeAtom(ctx, a);
+
+                a = other.a;
+                ctx = other.ctx;
+
+                if (ctx)
+                    JS_DupAtom(ctx, a);
+            }
+
+            return *this;
+        }
+
+
+        Atom& operator=(Atom&& other) noexcept
+        {
+            if (this != &other)
+            {
+                if (ctx)
+                    JS_FreeAtom(ctx, a);
+
+                a = other.a;
+                ctx = std::exchange(other.ctx, nullptr);
+            }
+
+            return *this;
+        }
+
+        ~Atom() noexcept
+        {
+            if (ctx)
+                JS_FreeAtom(ctx, a);
+        }
+
+        JSAtom a { 0 };
+        JSContext* ctx { nullptr };
+    };
+
     // Property ID in QuickJS are Atoms
     struct QuickJSAtomPointerValue final : public jsi::Runtime::PointerValue
     {
-        QuickJSAtomPointerValue(JSContext* context, JSAtom atom)
-            : _context { context }
-            , _atom { atom }
+        QuickJSAtomPointerValue(Atom&& atom) : _atom{std::move(atom)}
         {
         }
 
-        QuickJSAtomPointerValue(const QuickJSAtomPointerValue& other)
-            : _context { other._context }
-            , _atom { other._atom }
-        {
-            if (_context)
-            {
-                _atom = JS_DupAtom(_context, _atom);
-            }
-        }
+        QuickJSAtomPointerValue(const Atom &atom) : _atom{atom} {}
 
         void invalidate() override
         {
-            if (_context)
-            {
-                JS_FreeAtom(_context, _atom);
-            }
-
+            assert(_threadId == std::this_thread::get_id());
             delete this;
         }
 
         static JSAtom GetJSAtom(const PointerValue* pv) noexcept
         {
-            return static_cast<const QuickJSAtomPointerValue*>(pv)->_atom;
+            return static_cast<const QuickJSAtomPointerValue*>(pv)->_atom.a;
         }
 
     private:
-        JSContext* _context;
-        JSAtom _atom;
+        Atom _atom;
+        std::thread::id _threadId{std::this_thread::get_id()};
     };
 
     template <typename T>
@@ -129,9 +186,9 @@ private:
         return make<T>(new QuickJSPointerValue(std::move(val)));
     }
 
-    jsi::PropNameID createPropNameID(JSAtom atom)
+    jsi::PropNameID createPropNameID(JSAtom&& atom)
     {
-        return make<jsi::PropNameID>(new QuickJSAtomPointerValue { _context.ctx, atom });
+        return make<jsi::PropNameID>(new QuickJSAtomPointerValue{Atom{_context.ctx, std::move(atom)}});
     }
 
     jsi::String throwException(qjs::Value&& val)
@@ -231,7 +288,7 @@ private:
         }
     }
 
-    static JSAtom AsJSAtom(const jsi::PropNameID& propertyId) noexcept
+    static JSAtom AsJSAtomConst(const jsi::PropNameID& propertyId) noexcept
     {
         return QuickJSAtomPointerValue::GetJSAtom(getPointerValue(propertyId));
     }
@@ -306,7 +363,7 @@ private:
         std::stringstream strstream;
         strstream << (std::string) exc << std::endl;
 
-        if (JS_HasProperty(_context.ctx, exc.v, JS_NewAtom(_context.ctx, "stack")))
+        if (JS_HasProperty(_context.ctx, exc.v, Atom{_context.ctx, "stack"}.a))
         {
             strstream << (std::string) exc["stack"] << std::endl;
         }
@@ -321,11 +378,11 @@ private:
         auto exc = self->_context.getException();
         std::string message;
         std::string stack;
-        if (JS_HasProperty(_context.ctx, exc.v, JS_NewAtom(_context.ctx, "message")))
+        if (JS_HasProperty(_context.ctx, exc.v, Atom{_context.ctx, "message"}.a))
         {
             message = (std::string)exc["message"];
         }
-        if (JS_HasProperty(_context.ctx, exc.v, JS_NewAtom(_context.ctx, "stack")))
+        if (JS_HasProperty(_context.ctx, exc.v, Atom{_context.ctx, "stack"}.a))
         {
             stack = (std::string)exc["stack"];
         }
@@ -373,13 +430,13 @@ private:
                 message = "Unknown error";
             }
 
-            JS_DefinePropertyValue(ctx, errorObj, JS_NewAtom(ctx, "message"),
+            JS_DefinePropertyValue(ctx, errorObj, Atom{ctx, "message"}.a,
                 JS_NewString(ctx, message),
                 JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
 
             if (stack)
             {
-                JS_DefinePropertyValue(ctx, errorObj, JS_NewAtom(ctx, "stack"),
+                JS_DefinePropertyValue(ctx, errorObj, Atom{ctx, "stack"}.a,
                     JS_NewString(ctx, stack),
                     JS_PROP_WRITABLE | JS_PROP_CONFIGURABLE);
             }
@@ -388,6 +445,50 @@ private:
         JS_Throw(ctx, errorObj);
         return -1;
     }
+
+    bool _dontExecutePending{false};
+    struct PendingExecutionScope
+    {
+        PendingExecutionScope(QuickJSRuntime& rt)
+            : _pushedScope{std::exchange(rt._dontExecutePending, true)} 
+            , _rt(rt)
+        {
+        }
+
+        ~PendingExecutionScope()
+        {
+            _rt._dontExecutePending = _pushedScope;
+            // Do not run if there is a new exception in the scope
+            if (_uncaughtExceptions == std::uncaught_exceptions())
+            {
+                ExecutePendingJobs();
+            }
+        }
+
+    private:
+        void ExecutePendingJobs()
+        {
+            if (_rt._dontExecutePending)
+                return;
+
+            JSContext *ctx1{nullptr};
+            int err{1};
+            while (err > 0)
+            {
+                err = JS_ExecutePendingJob(_rt._runtime.rt, &ctx1);
+                if (err < 0) {
+                    // TODO: throw exception details from ctx1
+                    _rt.ThrowJSError();
+                }
+            }
+
+            // JS_RunGC(_rt._runtime.rt);
+        }
+
+        bool _pushedScope;
+        QuickJSRuntime &_rt;
+        int _uncaughtExceptions{std::uncaught_exceptions()};
+    };
 
 public:
     QuickJSRuntime(QuickJSRuntimeArgs&& args) :
@@ -402,8 +503,14 @@ public:
 
     virtual jsi::Value evaluateJavaScript(const std::shared_ptr<const jsi::Buffer>& buffer, const std::string& sourceURL) override try
     {
-        auto val = _context.eval(reinterpret_cast<const char*>(buffer->data()), sourceURL.c_str(), JS_EVAL_TYPE_GLOBAL);
-        auto result = createValue(std::move(val));
+        jsi::Value result;
+        {
+            PendingExecutionScope scope(*this);
+
+            auto val = _context.eval(reinterpret_cast<const char *>(buffer->data()), sourceURL.c_str(), JS_EVAL_TYPE_GLOBAL);
+            result = createValue(std::move(val));
+        }
+
         return result;
     }
     catch (qjs::exception&)
@@ -517,7 +624,7 @@ public:
 
     virtual std::string utf8(const jsi::PropNameID& sym) override try
     {
-        const char* str = JS_AtomToCString(_context.ctx, AsJSAtom(sym));
+        const char* str = JS_AtomToCString(_context.ctx, AsJSAtomConst(sym));
         if (!str)
         {
             ThrowJSError();
@@ -533,7 +640,7 @@ public:
 
     virtual bool compare(const jsi::PropNameID& left, const jsi::PropNameID& right) override try
     {
-        return AsJSAtom(left) == AsJSAtom(right);
+        return AsJSAtomConst(left) == AsJSAtomConst(right);
     }
     catch (qjs::exception&)
     {
@@ -649,19 +756,19 @@ public:
                 std::vector<jsi::PropNameID> propNames = proxy->_hostObject->getPropertyNames(*runtime);
                 if (!propNames.empty())
                 {
-                    std::unordered_set<JSAtom> uniqueAtoms;
-                    uniqueAtoms.reserve(propNames.size());
+                  std::unordered_set<JSAtom> uniqueConstAtoms;
+                    uniqueConstAtoms.reserve(propNames.size());
                     for (size_t i = 0; i < propNames.size(); ++i)
                     {
-                        uniqueAtoms.insert(JS_DupAtom(ctx, AsJSAtom(propNames[i])));
+                      uniqueConstAtoms.insert(AsJSAtomConst(propNames[i]));
                     }
 
-                    *ptab = (JSPropertyEnum*) js_malloc(ctx, uniqueAtoms.size() * sizeof(JSPropertyEnum));
-                    *plen = uniqueAtoms.size();
+                    *ptab = (JSPropertyEnum *)js_malloc(ctx, uniqueConstAtoms.size() * sizeof(JSPropertyEnum));
+                    *plen = uniqueConstAtoms.size();
                     size_t index = 0;
-                    for (auto atom : uniqueAtoms)
+                    for (const auto atom : uniqueConstAtoms)
                     {
-                        (*ptab + index)->atom = atom;
+                        (*ptab + index)->atom = JS_DupAtom(ctx, atom);
                         (*ptab + index)->is_enumerable = 1;
                         ++index;
                     }
@@ -773,7 +880,7 @@ public:
 
     virtual jsi::Value getProperty(const jsi::Object& obj, const jsi::PropNameID& name) override try
     {
-        return createValue(JS_GetProperty(_context.ctx, AsJSValue(obj), AsJSAtom(name)));
+        return createValue(JS_GetProperty(_context.ctx, AsJSValue(obj), AsJSAtomConst(name)));
     }
     catch (qjs::exception&)
     {
@@ -793,7 +900,7 @@ public:
 
     virtual bool hasProperty(const jsi::Object& obj, const jsi::PropNameID& name) override try
     {
-        return CheckBool(JS_HasProperty(_context.ctx, AsJSValueConst(obj), AsJSAtom(name)));
+        return CheckBool(JS_HasProperty(_context.ctx, AsJSValueConst(obj), AsJSAtomConst(name)));
     }
     catch (qjs::exception&)
     {
@@ -1112,12 +1219,12 @@ public:
 
         JS_SetOpaque(funcObj.v, new HostFunctionProxy { std::move(func) });
 
-        JS_DefineProperty(_context.ctx, funcObj.v, JS_NewAtom(_context.ctx, "length"), JS_NewUint32(_context.ctx, paramCount),
+        JS_DefineProperty(_context.ctx, funcObj.v, Atom{_context.ctx, "length"}.a, JS_NewUint32(_context.ctx, paramCount),
             JS_UNDEFINED, JS_UNDEFINED, JS_PROP_HAS_VALUE | JS_PROP_HAS_CONFIGURABLE);
 
-        JSAtom funcNameAtom = AsJSAtom(name);
+        JSAtom funcNameAtom = AsJSAtomConst(name);
         qjs::Value funcNameValue = _context.newValue(JS_AtomToValue(_context.ctx, funcNameAtom));
-        JS_DefineProperty(_context.ctx, funcObj.v, JS_NewAtom(_context.ctx, "name"), funcNameValue.v,
+        JS_DefineProperty(_context.ctx, funcObj.v, Atom{_context.ctx, "name"}.a, funcNameValue.v,
             JS_UNDEFINED, JS_UNDEFINED, JS_PROP_HAS_VALUE);
 
         return createPointerValue<jsi::Object>(std::move(funcObj)).getFunction(*this);
@@ -1131,15 +1238,65 @@ public:
     {
         QJS_VERIFY_ELSE_CRASH_MSG(count <= MaxCallArgCount, "Argument count must not exceed the supported max arg count.");
         std::array<JSValue, MaxCallArgCount> jsArgsConst;
+#ifdef TRACE_FUNCTION_CALLS
+        std::vector<std::string> arguments;
+#endif
         for (size_t i = 0; i < count; ++i)
         {
             jsArgsConst[i] = AsJSValueConst(*(args + i));
+            // Increment the args ref count in case if the call causes the GC run.
+            JS_DupValue(_context.ctx, jsArgsConst[i]);
+
+#ifdef TRACE_FUNCTION_CALLS
+            size_t plen;
+            const char *argval;
+
+            if (JS_IsObject(jsArgsConst[i])) {
+                auto asjson = JS_JSONStringify(_context.ctx, jsArgsConst[i], JS_UNDEFINED, JS_UNDEFINED);
+                argval = JS_ToCStringLen(_context.ctx, &plen, asjson);
+                JS_FreeValue(_context.ctx, asjson);
+            } else {
+                argval = JS_ToCStringLen(_context.ctx, &plen, jsArgsConst[i]);
+            }
+            arguments.emplace_back(argval);
+            JS_FreeCString(_context.ctx, argval);
+#endif
         }
 
         auto funcValConst = AsJSValueConst(func);
         auto thisValConst = AsJSValueConst(jsThis);
 
-        return createValue(JS_Call(_context.ctx, funcValConst, thisValConst, static_cast<int>(count), jsArgsConst.data()));
+#ifdef TRACE_FUNCTION_CALLS
+        qjs::Value funcname{_context.ctx, JS_GetPropertyStr(_context.ctx, funcValConst, "name")};
+        auto fname = funcname.as<std::string>();
+
+        std::stringstream strstream;
+        strstream << "CALLING " << fname << "(" << std::endl;
+        for (const auto &aarg : arguments)
+            strstream << aarg << ",";
+        strstream << ")" << std::endl;
+        auto debugLine = strstream.str();
+
+        // Ignore chatty layout and mouse events
+        if ((debugLine.find("topLayout") == std::string::npos) && (debugLine.find("topMouse") == std::string::npos))
+            OutputDebugStringA(debugLine.c_str());
+#endif
+
+        jsi::Value result;
+        {
+            PendingExecutionScope scope(*this);
+
+            JSValue jsResult = JS_Call(_context.ctx, funcValConst, thisValConst, static_cast<int>(count), jsArgsConst.data());
+            // Decrement args ref count before the exception check that happens in the qjs::Value.
+            for (size_t i = 0; i < count; ++i)
+            {
+                JS_FreeValue(_context.ctx, jsArgsConst[i]);
+            }
+
+            result = createValue(std::move(jsResult));
+        }
+
+        return result;
     }
     catch (qjs::exception&)
     {
@@ -1153,11 +1310,27 @@ public:
         for (size_t i = 0; i < count; ++i)
         {
             jsArgsConst[i] = AsJSValueConst(*(args + i));
+            // Increment the args ref count in case if the call causes the GC run.
+            JS_DupValue(_context.ctx, jsArgsConst[i]);
         }
 
         auto funcValConst = AsJSValueConst(func);
 
-        return createValue(JS_CallConstructor(_context.ctx, funcValConst, static_cast<int>(count), jsArgsConst.data()));
+        jsi::Value result;
+        {
+            PendingExecutionScope scope(*this);
+
+            JSValue jsResult = JS_CallConstructor(_context.ctx, funcValConst, static_cast<int>(count), jsArgsConst.data());
+            // Decrement args ref count before the exception check that happens in the qjs::Value.
+            for (size_t i = 0; i < count; ++i)
+            {
+                JS_FreeValue(_context.ctx, jsArgsConst[i]);
+            }
+
+            result = createValue(std::move(jsResult));
+        }
+
+        return result;
     }
     catch (qjs::exception&)
     {
